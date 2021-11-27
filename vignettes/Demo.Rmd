@@ -1,0 +1,26 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(dplyr)
+library(Biostrings)
+```
+
+
+```{r}
+ZNF140_cds <- rtracklayer::import("data/ZNF140_refseq_protein.fasta", format="fasta", type="AA") %>% as.character()
+
+ZNF140 <- tibble(Specie = names(ZNF140_cds), Sequence=ZNF140_cds) %>%
+  mutate(Contact_Residues = findFingers(Sequence) %>% getContactResidues()) %>%
+  select(Specie, Contact_Residues)
+
+ZNF140
+```
+
+

@@ -1,0 +1,282 @@
+---
+title: "Correlation analysis of ZNF343's extended motifs"
+author: Zheng Zuo
+date: "Jan 1, 2019"
+output:
+  html_document:
+    df_print: paged
+    theme: lumen
+    highlight: pygments
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+## Introduction
+This Notebook includes the analysis workflow sequal to the previous "Iterative motif analysis of ZNF343", and is used to show that it is not only feasible, but also necessary to use such an iterative analysis method to extract the full specificity of long, tandem zinc finger proteins (ZFPs). Briefly, I generated the extended motif profiles based on different hexamer anchor sites, including the GAAGCG consensus and all its 18 single variants. Using correlation analysis and hiechical clustering, it is clear that only the GAAGCG consensus and GAAGCn anchors can serve as "good" anchors to produce longer specificity profiles highly similar to published HT-SELEX results, which also lends evidence to our proposed "Sequentional recognition", or "Anchor" model about the recognition of tandem zinc finger proteins. This analysis workflow could be generalzied to analyze other long ZFPs also.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(GenomicRanges)
+library(BSgenome.Hsapiens.UCSC.hg19)
+library(motifmatchr)
+library(TFCookbook)
+```
+
+### Parameters used in this analysis workflow
+![](images/Anchor_GAAGCG.png)
+```{r message=FALSE, warning=FALSE}
+border_width <- 40
+upstream_flank <- 30
+downstream_flank <- 1
+
+load("data/ZNF343_exo_peaks.RData") # Load processed ChIP-exo data of ZNF343, including exo reads and peaks positions in hg19 genome.
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+countExo <- function(chrom, start, end, direction, exoReads = ZNF343_exo_reads_by_chrome_strand) {
+  if (direction == "+") {
+    upstream_count <- exoReads[chrom, "+"][[1]] %>%
+      filter(between(edge, start - border_width, end)) %>%
+      tally(wt = n)
+
+    downstream_count <- exoReads[chrom, "-"][[1]] %>%
+      filter(between(edge, start, end + border_width)) %>%
+      tally(wt = n)
+  }
+  else if (direction == "-") {
+    upstream_count <- exoReads[chrom, "-"][[1]] %>%
+      filter(between(edge, start, end + border_width)) %>%
+      tally(wt = n)
+
+    downstream_count <- exoReads[chrom, "+"][[1]] %>%
+      filter(between(edge, start - border_width, end)) %>%
+      tally(wt = n)
+  }
+
+  return((upstream_count + downstream_count)[[1]])
+}
+
+anchorModel <- function(anchor) {
+  # Creating anchor motif with prefixed bases
+  Anchor_pfm <- TFBSTools::PFMatrix(
+    ID = "Anchor", name = anchor,
+    profileMatrix = matrix(nrow = 4, ncol = nchar(anchor), byrow = TRUE,
+                           dimnames = list(c("A", "C", "G", "T"))) %>%
+    TFCookbook::addAnchorMatrix("GAAGCA", height = -1)
+  )
+
+  # Finding all anchor sites within ZNF343 ChIP-exo peaks
+  Anchor_pos <- motifmatchr::matchMotifs(Anchor_pfm, ZNF343_peaks,
+    genome = "hg19",
+    out = "positions", p.cutoff = 1e-5,
+  )[[1]] %>%
+    as_tibble() %>%
+    select(seqnames, start, end, strand) %>%
+    mutate(exo_count = mapply(
+      countExo,
+      as.character(seqnames), start, end, strand
+    ))
+
+  # Extending the anchor position by fixed upstream and downstream distances
+  Anchor_pos %<>%
+    filter(exo_count > 0) %>%
+    mutate(
+      start = if_else(strand == "+",
+        start - upstream_flank, start - downstream_flank
+      ),
+      end = if_else(strand == "+",
+        end + downstream_flank, end + upstream_flank
+      ),
+      Energy = -log(exo_count)
+    )
+
+  # Extracting full sequences surrounding the anchor sites
+  Anchor_pos$Sequence <- BSgenome::getSeq(Hsapiens,
+    names = Anchor_pos$seqnames,
+    start = Anchor_pos$start,
+    end = Anchor_pos$end,
+    strand = Anchor_pos$strand
+  ) %>% as.character()
+
+  return(TFCookbook::buildEnergyModel(Anchor_pos))
+}
+
+
+addAnchorMatrix <- function(energyMatrix, anchor, position, height){
+  energyMatrix[,position:(position+nchar(anchor)-1)] <- -height*TFCookbook::anchorMatrix(anchor)
+  
+  return(energyMatrix)
+}
+
+```
+
+
+## Building recognition models based on different anchor sites
+
+```{r eval=FALSE, message=FALSE}
+require(furrr)  # Do multi-core parallel computing
+plan(multiprocess)
+
+singleVariants <- tibble(Sequence = TFCookbook::kmer(6)) %>%
+  mutate(Mismatch = TFCookbook::countMismatch(Sequence, "GAAGCG")) %>%  
+  filter(Mismatch <= 1) %>%# Enumerating all single variants of GAAGCG anchor sites
+  mutate(Model = furrr::future_map(Sequence, anchorModel)) %>% # Extracting extended specificity info based on each anchor site
+  mutate(Anchor_count = purrr::map_int(Model, function(model) length(model$residuals))) # Counting the number of anchors found within ChIP-exo peaks
+```
+
+
+```{r echo=FALSE}
+load("data/ZNF343_models.RData")
+
+singleVariants %>%
+  arrange(Mismatch)
+```
+
+
+Drawing the extended motif profile of ZNF343 based on consensus GAAGCG anchor site
+```{r}
+getEnergyMatrix <- function(model) {
+  coeff <- model$coefficients
+  num <- (length(coeff) - 1) / 3
+  energyMatrix <- matrix(nrow = 4, ncol = num, dimnames = list(c("A", "C", "G", "T")))
+    
+  for (i in 1:num) {
+    energyMatrix["C", i] <- 0
+    energyMatrix["G", i] <- coeff[paste0("`", i, "CG`")]
+    energyMatrix["A", i] <- coeff[paste0("`", i, "CA`")]
+    energyMatrix["T", i] <- coeff[paste0("`", i, "CT`")]
+    
+    energyMatrix[, i] <- energyMatrix[, i] - 0.25 * sum(energyMatrix[, i])
+  }
+  
+  return(energyMatrix)
+}
+
+
+(singleVariants %>%
+  filter(Sequence == "GAAGCG"))$Model[[1]] %>%
+  getEnergyMatrix() %>%
+  TFCookbook::addAnchorMatrix(anchor = "GAAGCG", position=31, height=0.1) %>%
+  TFCookbook::plotEnergyLogo()
+```
+
+
+## Importing HT-SELEX result from JASPAR database
+```{r}
+ZNF343_SELEX.PFM <- TFBSTools::readJASPARMatrix("data/ZNF343.jaspar") %>% TFBSTools::reverseComplement() # Importing PFM from JASPAR database
+
+ZNF343_SELEX.PFM@profileMatrix %>%
+  TFCookbook::toEnergyMatrix() %>% # Converting PFM to energyMatrix based TFCookbook function toEnergyMatrix
+  TFCookbook::plotEnergyLogo() +   # Plotting Energy logo of ZNF343 HT-SELEX result
+  ggtitle("Energy matrix based on HT-SELEX result")  +
+  scale_x_discrete(label=21:37)
+
+#ggsave("images/ZNF343_SELEX.svg", width=6, height=3, units="in")
+```
+```{r}
+(ZNF343_SELEX.Coeffs <-
+  (ZNF343_SELEX.PFM@profileMatrix %>%
+  TFCookbook::toEnergyMatrix() %>%
+ # TFCookbook::toCoeffs())[c(1:30)])
+  TFCookbook::toCoeffs())[c(1:30, 49:51)])
+```
+
+## Ploting extended motif for each anchor site based on the ChIP-exo reads in flanking regions
+
+```{r fig.height=10, fig.width=10}
+logo_list <- purrr::map2(
+  singleVariants$Sequence,
+  singleVariants$Model,
+  function(sequence, model) {
+    -(getEnergyMatrix(model) %>%
+      TFCookbook::addAnchorMatrix(anchor = sequence, position = 31, height = 0.2))[,21:37]
+  }
+)
+
+(logos <- ggplot() +
+  ggseqlogo::geom_logo(logo_list, method="custom", seq_type = "dna")  + 
+  ggseqlogo::theme_logo() +
+  facet_wrap(~seq_group, ncol=4, scales='free_x') +
+  ylim(-0.7, 0.7) +
+ # scale_x_continuous(breaks = seq(1,17,2), label = seq(1,17,2)) +
+  theme(axis.text.x = element_blank())
+    )
+
+
+#ggsave("images/ZNF343_logos.eps", plot=logos, width=10, height=10, units="in")
+```
+
+
+## Comparing extended motifs of all single variants and published HT-SELEX result
+
+### Building Heatmap and Hiechical clustering based on the correlation coefficients between pairs of extended motifs
+```{r fig.height=5.5, fig.width=5}
+Heatmap_data <- sapply(singleVariants$Model, function(x) x$coefficients[c(62:91,110:112)]) %>%
+#Heatmap_data <- sapply(singleVariants$Model, function(x) x$coefficients[c(62:91)]) %>%
+  na.omit() %>%
+  as.data.frame()
+
+colnames(Heatmap_data) <- singleVariants$Sequence
+
+Heatmap_data$'HT-SELEX' <- ZNF343_SELEX.Coeffs
+singleVariants$Sequence
+Heatmap.matrix = 1-cor(Heatmap_data)
+# Modify ordering of the clusters using clustering callback option
+callback = function(hc, mat){
+    weights = -1*c(6, 6, 5, 4, 16, 1, 1, 50, 1, 2, 2, 2, 3, 3, 3, 4, 5, 5, 6, 100)
+    sv = svd(t(mat))$v[,1]
+    dend = reorder(as.dendrogram(hc), wts = weights)
+    as.hclust(dend)
+}
+
+
+Heatmap <- pheatmap::pheatmap(Heatmap.matrix, clustering_callback = callback, fontfamliy = "mono")
+
+#ggsave("images/Heatmap_ZNF343.eps", plot=Heatmap, height = 5.5, width = 5)
+```
+
+
+### Displaying the total number anchors sites found within the ChIP-exo peaks
+```{r fig.height=5, fig.width=2.5}
+order = c("HT-SELEX", "GAAGCC", "GAAGCG", "GAAGCA", "GAAGCT",
+          "GAAGGG",   "GAACCG", "GAAACG", "GTAGCG", "CAAGCG",
+          "GAATCG",   "GACGCG", "GAGGCG", "GAAGTG", "GATGCG",
+          "GAAGAG",   "GCAGCG", "GGAGCG", "AAAGCG", "TAAGCG")
+
+(singleVariants %>%
+  mutate(Sequence = factor(Sequence, levels = order),
+         Anchor_count = as.integer(Anchor_count)) %>%
+  ggplot(aes(y=Sequence, x=Anchor_count)) +
+  geom_bar(stat="identity",orientation = "y") +
+  xlab("Number of anchor sites within ChIP-exo peaks")  + scale_x_reverse(expand = expansion(mult = 0, add = 150)) +
+  ylab("Anchor sequence") + scale_y_discrete(limits=rev, position = "right") + theme_bw() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_blank())-> plot.Anchor.count)
+
+#cowplot::plot_grid(plot.Anchor.count,
+ #                  ggplotify::as.ggplot(Heatmap), ncol = 2,
+  #                 rel_widths = c(1, 2),
+   #                align = "h", axis = "b")
+
+ggsave("images/ZNF343.Anchors.eps", plot = plot.Anchor.count, height = 5, width = 2.5)
+
+```
+
+## Summary of results
+![](images/Heatmap_ZNF343_modified.svg)
+
+
+```{r}
+hg19 <- BSgenome.Hsapiens.UCSC.hg19::BSgenome.Hsapiens.UCSC.hg19
+
+chrom.length <- lapply(seqnames(hg19), function(x) length(hg19[[x]]))
+
+hg19.GRange <- GRanges(seqnames = seqnames(hg19),
+                       ranges = IRanges(start=rep(1,93),
+                                        end=as.numeric(chrom.length)))
+```
+

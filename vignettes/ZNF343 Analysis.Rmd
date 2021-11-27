@@ -1,0 +1,78 @@
+---
+title: "Iterative motif analysis of ZNF343"
+author: Zheng Zuo
+date: "Jan 21, 2020"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    df_print: paged
+    theme: lumen
+    highlight: pygments
+    toc: yes
+    toc_float: yes
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(GenomicRanges)
+library(BSgenome.Hsapiens.UCSC.hg19)
+library(motifmatchr)
+library(TFCookbook)
+```
+
+
+```{r}
+## Parameters for Iterative motif analysis
+anchor <- "GGTGAAGCG"
+border_width <- 40
+upstream_flank <- 30
+downstream_flank <- 1
+```
+
+
+
+## Importing ChIP-exo raw reads of ZNF343 protein
+
+The raw ChIP-exo reads are stored in ZNF343.bed, which are directly downloaded and compiled from https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM2466539
+
+```{r message=FALSE, warning=FALSE}
+ZNF343_exo_reads <- readr::read_table2("data/ZNF343.bed", 
+                                       col_names =
+                                  c("chrome","start","end","name","score","strand")) %>%
+  dplyr::mutate(edge=ifelse(strand=="+",start,end)) %>%
+  dplyr::count(chrome, strand, edge) %>%
+  dplyr::arrange(chrome, strand, edge) %>%
+  group_by(chrome， strand)
+
+# Spliting ChIP-exo reads to separate data tables based on chromosome to speed up computation process
+ZNF343_exo_reads_by_chrome_strand <- ZNF343_exo_reads %>%
+  group_split()
+
+dim(ZNF343_exo_reads_by_chrome_strand) <- c(93,2)
+rownames(ZNF343_exo_reads_by_chrome_strand) <- group_keys(ZNF343_exo_reads)$chrome[seq(1,186,2)]
+colnames(ZNF343_exo_reads_by_chrome_strand) <- c("-", "+")
+
+rm(ZNF343_exo_reads)
+```
+
+```{r}
+hg19 <- BSgenome.Hsapiens.UCSC.hg19
+
+anchor <- "GAAGCG"
+
+Anchor_pos <- Biostrings::vmatchPattern(anchor, hg19)
+
+Anchor_pos %>% as_tibble()
+```
+
+```{r}
+model <- anchorModel(Anchor_pos)
+
+model %>%
+  getEnergyMatrix() %>%
+  plotEnergyLogo()
+```
+
