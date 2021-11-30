@@ -1,0 +1,217 @@
+---
+title: "Analysis of ZNF140 Spec-seq data"
+author: Zheng Zuo
+date: "Nov 10, 2021"
+output:
+  html_document:
+    df_print: paged
+    theme: lumen
+    highlight: pygments
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r include=FALSE}
+library(stringr)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(TFCookbook)
+```
+
+```{r include=FALSE}
+Regular.reference    = "ATTAGGAGCAGGAATTGC"
+Compressed.reference = "TATTAGGAGCGGAATTGC"
+
+library_type <- function(seq) {
+  if (stringr::str_detect(seq, Compressed.reference) == TRUE) return("Compressed(reference)")
+  else if (stringr::str_detect(seq, Regular.reference) == TRUE) return("Regular(reference)")
+  else if (stringr::str_detect(seq, "....GGAGCAGGAATTGC") == TRUE) return("Regular-1")
+  else if (stringr::str_detect(seq, "ATTA....CAGGAATTGC") == TRUE) return("Regular-2")
+  else if (stringr::str_detect(seq, "ATTAGGA....GAATTGC") == TRUE) return("Regular-3")
+  else if (stringr::str_detect(seq, "ATTAGGAGCA....TTGC") == TRUE) return("Regular-4")
+  else if (stringr::str_detect(seq, "ATTAGGAGCAGGAA....") == TRUE) return("Regular-5")
+  else if (stringr::str_detect(seq, "....AGGAGCGGAATTGC") == TRUE) return("Compressed-1")
+  else if (stringr::str_detect(seq, "TATT....GCGGAATTGC") == TRUE) return("Compressed-2")
+  else if (stringr::str_detect(seq, "TATTAGG....GAATTGC") == TRUE) return("Compressed-3")
+  else if (stringr::str_detect(seq, "TATTAGGAGC....TTGC") == TRUE) return("Compressed-4")
+  else if (stringr::str_detect(seq, "TATTAGGAGCGGAA....") == TRUE) return("Compressed-5")
+  else return("Unclassified")
+}
+```
+
+## Background and Experimental design
+
+![Predicted Motifs by B1H data and Kundaje lab analysis](Predictions.png)
+
+![Sequencing libraries design](Library design.png)
+
+### Importing processed Spec-seq data of ZNF140
+```{r}
+Sample1.processed <- read.csv(file = "ZNF140.replicate1.csv")
+
+Sample2.processed <- read.csv(file = "ZNF140.replicate2.csv")
+
+Sample1.processed
+```
+
+
+
+### Summary of Sequencing reads in Bound and Unbound fractions, respectively
+```{r}
+Sample1.processed %>%
+  group_by(Library) %>%
+  summarize("Number of variants in library"=n(),
+            "Total Bound reads"=sum(Bound),
+            "Total Unbound reads"=sum(Unbound),
+            "Bound/Unbound" = sum(Bound)/sum(Unbound))
+```
+
+
+
+## Build motif models based on all double variants of consensus sites (Compressed or Regular)
+
+```{r warning=FALSE}
+Model_Compressed_Sample1 <- Sample1.processed %>%
+  filter(Mismatch.Compressed<=2) %>%
+  rename(Energy=`Relative.Energy`) %>%
+  TFCookbook::buildEnergyModel()
+
+summary(Model_Compressed_Sample1)
+```
+
+```{r message=FALSE, warning=FALSE}
+Model_Compressed_Sample1 %>%
+  TFCookbook::getEnergyMatrix() %>%
+  TFCookbook::plotEnergyLogo() + ggtitle("Compressed motif of ZNF140\nSample #1") + theme(plot.title = element_text(hjust = 0.5))
+
+#ggsave("Sample1.compressed.svg", plot=last_plot())
+```
+
+
+```{r message=FALSE, warning=FALSE}
+Sample1.processed %>%
+  filter(Mismatch.Regular<=2) %>%
+  rename(Energy=`Relative.Energy`) %>%
+  TFCookbook::buildEnergyModel() -> Model_Regular_Sample1 
+
+Model_Regular_Sample1 %>%
+  TFCookbook::getEnergyMatrix() %>%
+  TFCookbook::plotEnergyLogo() + ggtitle("Regular motif of ZNF140\n Sample #1") + theme(plot.title = element_text(hjust = 0.5))
+
+#ggsave("Sample1.regular.svg", plot=last_plot())
+```
+
+
+## Predicting binding energy based on Compressed motif model and compare to Observed energy values
+```{r message=FALSE, warning = FALSE}
+Sample1.processed %<>%
+  mutate(`Energy predicted by Compressed Motif` = TFCookbook::predictEnergy(Sequence, Model_Compressed_Sample1),
+         `Energy predicted by Regular Motif` = TFCookbook::predictEnergy(Sequence, Model_Regular_Sample1)) %>%
+  mutate(`Minimal predicted Energy` = pmin(`Energy predicted by Compressed Motif`, `Energy predicted by Regular Motif`),
+         Class = dplyr::if_else(`Energy predicted by Compressed Motif` < `Energy predicted by Regular Motif`, "Compressed site", "Regular site"))
+
+(Sample1.processed %>%
+  ggplot(aes(x=`Energy predicted by Compressed Motif`,
+                 y=`Relative.Energy`)) +
+  theme_bw()+
+  geom_abline(intercept = 0 , slope = 1, linetype = "dashed") +
+  geom_point(aes(color=Library,
+                 shape=Class), show.legend = FALSE) +
+  xlab("Predicted energy by Compressed motif model (kT)") +
+  ylab("Observed energy (kT)") +
+  ggpubr::stat_regline_equation(label.x = 7.5, label.y = -1,
+                                aes(label = paste(..adj.rr.label..))) -> plot_Compressed)
+```
+
+## Predicting binding energy based on Regular motif model and compare to Measured energy values
+```{r message=FALSE, warning=FALSE}
+(Sample1.processed %>%
+  ggplot(aes(x=`Energy predicted by Regular Motif`,
+                 y=`Relative.Energy`)) +
+  theme_bw()+
+  geom_abline(intercept = 0 , slope = 1, linetype = "dashed") +
+  geom_point(aes(color=Library,
+                 shape=Class), show.legend = FALSE) +
+  xlab("Predicted energy by Extended motif model (kT)") +
+  ylab("Observed energy (kT)") +
+  ggpubr::stat_regline_equation(label.x = 3, label.y = -1,
+                                aes(label = paste(..adj.rr.label..)))
+  -> plot_Regular)
+```
+
+## Minimum of Two models
+Alternatively, if we use the minimal values of predicted Energy from both Compressed Motif and Regular motif, and compare that to the observed binding eneregy values, the correlation gets significantly better.
+
+```{r message=FALSE}
+(Sample1.processed %>%
+  ggplot(aes(x=`Minimal predicted Energy`,
+                 y=`Relative.Energy`)) +
+  geom_abline(intercept = 0 , slope = 1, linetype = "dashed") +
+  geom_point(aes(color=Library,
+                 shape = Class)) +
+  ggpubr::stat_regline_equation(label.x = 3, label.y = -1,
+                                aes(label = paste(..adj.rr.label..))) +
+  scale_x_continuous(breaks = seq(-2,4,1)) +
+  theme_bw() +
+  xlab("Minimum of energy predicted by both Compressed and Regular Model") +
+  ylab("Observed energy (kT)") -> plot_minTwo)
+```
+
+
+Using Compressed Motif model, it is possible to predict the binging energies for all sequences in the libraries. Clearly, small fractions of sites, particularly in R1 library, are predicted to have significantly higher energy than the measured values, which means alternative motif model is required to explain these small group of binding sites by Regular Motif model. 
+
+Structurally, above results show that ZNF140 has irregular, variable motifs, and can recognize underlying binding sites in two distinct conformations, i.e., Compressed and Regular conformations.
+
+```{r fig.height=6, fig.width=17.5}
+gridExtra::grid.arrange(plot_Compressed, plot_Regular, plot_minTwo, ncol = 3, widths = c(1.02, 1, 1.4)) -> p1
+
+#ggsave("ZNF140 Models Predictions vs Observations.svg",plot = p1, height = 6, width = 17.5)
+```
+
+
+
+## Comparison of observed energy values between Sample 1 and Sample 2
+
+The overall data reproduciblity is quite good ~0.5kT, but not as high as other previous runs, primarily because of high diverisity of sequencing libraries and limited reads overall.
+
+```{r}
+inner_join(Sample1.processed, Sample2.processed, by = "Sequence") %>%
+  select(Sequence,
+         Energy.Sample1 = `Relative.Energy.x`,
+         Energy.Sample2 = `Relative.Energy.y`,
+         Library = `Library.x`,
+         Mismatch.Compressed = `Mismatch.Compressed.x`) %>%
+  ggplot(aes(x = Energy.Sample1, y = Energy.Sample2, color=Library)) +
+  geom_point() +
+  geom_abline(intercept = -0.25, slope = 1, linetype="dashed") +
+  geom_abline(intercept = 0.25, slope = 1, linetype="dashed") +
+  theme_bw()
+```
+
+## Comparison of model parameters derived from Sample 1 and Sample 2 respectively
+```{r warning=FALSE}
+Model_Compressed_Sample2 <- Sample2.processed %>%
+  filter(Mismatch.Compressed<=2) %>%
+  rename(Energy=`Relative.Energy`) %>%
+  TFCookbook::buildEnergyModel()
+
+Model_Regular_Sample2 <- Sample2.processed %>%
+  filter(Mismatch.Regular<=2) %>%
+  rename(Energy=`Relative.Energy`) %>%
+  TFCookbook::buildEnergyModel()
+
+
+ggplot()+
+  geom_point(aes(x = Model_Compressed_Sample1$coefficients[2:55],
+                 y = Model_Compressed_Sample2$coefficients[2:55]), color = "red") +
+  geom_point(aes(x = Model_Regular_Sample1$coefficients[2:55],
+                 y = Model_Regular_Sample2$coefficients[2:55]), color = "blue") +
+  theme_bw()+
+  xlab("Model parameters derived from Sample 1 data") +
+  ylab("Model parameters derived from Sample 2 data")
+```
+
