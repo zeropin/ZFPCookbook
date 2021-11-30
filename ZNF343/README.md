@@ -1,5 +1,5 @@
 # ZNF343-analysis-workflow in R
-![](images/Heatmap_ZNF343_modified.svg)
+![](ZNF343/images/Heatmap_ZNF343_modified.svg)
 *The putative consensus site of ZNF343 is GAAGCG, and it has 18 single variants. Each of them can serve as anchor site to derive the extended motifs by counting the ChIP-exo reads in the adjacent region of anchors within ChIP-exo peaks. The hiechical clustering tree and heatmap can be generated based on pairwise similaries, or correlation coefficients between extended motifs, including the HT-SELEX result. Clearly, only the GAAGCn-type hexamer can serve as good "anchors" to produce the extended motif highly similar to the published HT-SELEX result, most likely because the recognition of accessory fingers depends on the presence of consensus core site, i.e. conditional recogntion of tandem ZFPs, which also demostrates the **feasibility and necessity** of iterative motif analysis for long ZFPs using pre-identified core site.*
 
 ## Iterative motif analysis of ZNF343 ChIP-exo data
