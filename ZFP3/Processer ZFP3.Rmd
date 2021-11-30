@@ -1,0 +1,340 @@
+---
+title: "Data Analysis pipeline for ZFP3 Spec-seq data"
+author: Zheng Zuo
+date: "Dec 18, 2019"
+output:
+  html_document:
+    df_print: paged
+    theme: lumen
+    highlight: pygments
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r include=FALSE}
+library(stringr)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(TFCookbook)
+```
+
+```{r include=FALSE}
+ChIP.reference=  "GGGTTTTGAAGGATGAATAGGAGTTAGA"
+R3B.reference =  "GGGTTT----GGATG--TAGGAGTTAGA"
+R4N.reference =  "GGGTTTTGAAGG----ATAGTTCTTAGA"
+
+library_type <- function(seq) {
+  if (stringr::str_detect(seq, ChIP.reference) == TRUE) return("Reference")
+  else if (stringr::str_detect(seq, "....TTTGAAGGATGAATAGGAGTTAGA") == TRUE) return("R1")
+  else if (stringr::str_detect(seq, "GGGT....AAGGATGAATAGGAGTTAGA") == TRUE) return("R2")
+  else if (stringr::str_detect(seq, "GGGTTTTG....ATGAATAGGAGTTAGA") == TRUE) return("R3")
+  else if (stringr::str_detect(seq, "AAGGGTTT....GGATGTAGGAGTTAGA") == TRUE) return("R3B")
+  else if (stringr::str_detect(seq, "GGGTTTTGAAGG....ATAGGAGTTAGA") == TRUE) return("R4")
+  else if (stringr::str_detect(seq, "GGGTTTTGAAGG....ATAGTTCTTAGA") == TRUE) return("R4N")
+  else if (stringr::str_detect(seq, "GGGTTTTGAAGGATGA....GAGTTAGA") == TRUE) return("R5")
+  else if (stringr::str_detect(seq, "GGGTTTTGAAGGATGAATAG....TAGA") == TRUE) return("R6")
+  else if (stringr::str_detect(seq, "GGGTTTTGAAGGATGAATAGGAGT....") == TRUE) return("R7")
+  else return("Unclassified")
+}
+
+realign_sequence <- function(seq, library) {
+  if(library == "R3B")
+    return(str_c(substr(seq, 3, 17), "--", substr(seq, 18, 28)))
+  else return(seq)
+}
+
+col_scheme = ggseqlogo::make_col_scheme(chars=c('A', 'C', 'G', 'T'),
+                             cols=c('darkgreen', 'blue', 'orange', 'red'))
+```
+
+## Background and Experimental design
+
+![Predicted Motifs by B1H data and Kundaje lab analysis](Predictions.png)
+
+![Sequencing libraries design](Library design.png)
+
+## Counting sequences from raw sequencing files
+
+```{r message=FALSE, warning=FALSE}
+require(readr)
+require(dplyr)
+
+Sample1.Bound <- read_csv("ZFP3.sample1.Bound.raw",
+  col_names = FALSE
+) %>%
+  count(Sequence=substring(X1, 1, 28), name="Reads")
+
+Sample1.Unbound <- read_csv("ZFP3.sample1.Unbound.raw",
+  col_names = FALSE
+) %>%
+  count(Sequence=substring(X1, 1, 28), name="Reads")
+
+Sample2.Bound <- read_csv("ZFP3.sample2.Bound.raw",
+  col_names = FALSE
+) %>%
+  count(Sequence=substring(X1, 1, 28), name="Reads")
+
+Sample2.Unbound <- read_csv("ZFP3.sample2.Unbound.raw",
+  col_names = FALSE
+) %>%
+  count(Sequence=substring(X1, 1, 28), name="Reads")
+
+```
+
+### Caculating relative binding affinity and energy based on Bound and Unbound reads for each variant.
+```{r}
+Sample1.processed <- 
+  inner_join(Sample1.Bound, Sample1.Unbound, by = "Sequence") %>%
+  mutate(Library = purrr::map_chr(Sequence, library_type)) %>%
+  dplyr::rename(Bound = Reads.x, Unbound = Reads.y) %>%
+      filter(Bound+Unbound >=100) %>%
+  mutate("B/Ub" = Bound / Unbound,
+         "Relative Energy" = -log(Bound / Unbound),
+          Mismatch=  TFCookbook::countMismatch(Sequence, "GGGTTTTGAAGGATGAATAGGAGTTAGA")
+         ) %>%
+  arrange(`Relative Energy`)
+
+Sample1.processed
+
+write.csv(Sample1.processed, "ZFP3.replicate1.csv", row.names = FALSE)
+```
+
+
+### Summary of Sequencing reads in Bound and Unbound fractions, respectively
+```{r}
+Sample1.processed %>%
+  group_by(Library) %>%
+  summarize("Number of variants in library"=n(),
+            "Total Bound reads"=sum(Bound),
+            "Total Unbound reads"=sum(Unbound),
+            "Bound/Unbound" = sum(Bound)/sum(Unbound))
+```
+
+
+
+
+```{r eval=FALSE, include=FALSE}
+#save.image("ZFP3.RData")
+
+load("ZFP3.RData")
+```
+
+
+## Build motif models based on all double variants of reference sequence
+
+```{r warning=FALSE}
+Sample1.processed %>%
+  filter(Mismatch<=2) %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() -> Model_Sample1
+
+summary(Model_Sample1)
+```
+
+```{r}
+Model_Sample1 %>%
+  TFCookbook::getEnergyMatrix() %>%
+  TFCookbook::plotEnergyLogo() + ggtitle("Motif of ZFP3\nSample #1") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+## Predicting binding energy based on Double-variants motif model and compare to Measured energy values
+```{r}
+Sample1.processed %>%
+  mutate(`Energy predicted by Motif` = TFCookbook::predictEnergy(Sequence, Model_Sample1)) %>%
+  ggplot() +
+  geom_point(aes(x=`Energy predicted by Motif`,
+                 y=`Relative Energy`,
+                 color=Library)) + xlab("Energy predicted by Double-variants Motif (kT)") + ylab("Observed binding energy (kT)")
+```
+
+
+### Linear regression between Predicted and Measured binding energies
+
+A Double-variants energy model is sufficent to explain most (R^2=0.74) of observed binding energy values in ZFP3(F1-F10). 
+
+```{r}
+Sample1.processed %>%
+  mutate(`Energy predicted by Motif` = TFCookbook::predictEnergy(Sequence, Model_Sample1)) %>%
+  lm(`Energy predicted by Motif` ~ `Relative Energy`, data=.) %>%
+  summary()
+```
+
+
+## Comparison between Sample 1 and 2 as biological replicates
+
+The overall data reproduciblity is quite good ~0.5kT, but not as high as my conventional runs, primarily because of high diverisity of sequencing libraries and limited reads overall.
+
+
+```{r}
+Sample2.processed <- 
+  inner_join(Sample2.Bound, Sample2.Unbound, by = "Sequence") %>%
+  mutate(Library = purrr::map_chr(Sequence, library_type)) %>%
+  rename(Bound = Reads.x, Unbound = Reads.y) %>%
+      filter(Bound+Unbound >=100) %>%
+  mutate("B/Ub" = Bound / Unbound,
+         "Relative Energy" = -log(Bound / Unbound),
+          Mismatch=  TFCookbook::countMismatch(Sequence, "GGGTTTTGAAGGATGAATAGGAGTTAGA")
+         ) %>%
+  arrange(`Relative Energy`)
+
+write.csv(Sample2.processed, file="ZFP3.replicate2.csv", row.names = FALSE)
+Sample2.processed
+```
+
+
+```{r}
+Sample2.processed %>%
+  filter(Mismatch<=2) %>%
+  rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() -> Model_Sample2
+
+Model_Sample2 %>%
+  TFCookbook::getEnergyMatrix() %>%
+  TFCookbook::plotEnergyLogo() + ggtitle("Motif of ZFP3\nSample #2") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+Sample2.processed %>%
+  mutate(`Energy predicted by Motif` = TFCookbook::predictEnergy(Sequence, Model_Sample2)) %>%
+  ggplot() +
+  geom_point(aes(x=`Energy predicted by Motif`,
+                 y=`Relative Energy`,
+                 color=Library)) + xlab("Energy predicted by Double-variants Motif (kT)") + ylab("Observed binding energy (kT)")
+```
+
+```{r}
+Comparison <- inner_join(Sample1.processed, Sample2.processed, by = "Sequence") %>%
+  select(Sequence,
+         Energy.Sample1 = `Relative Energy.x`,
+         Energy.Sample2 = `Relative Energy.y`,
+         Library = `Library.x`,
+         Mismatch = `Mismatch.x`)
+
+Comparison %>%
+  ggplot(aes(x = Energy.Sample1, y = Energy.Sample2, color=Library)) +
+  geom_point() +
+  geom_abline(intercept = -0.25 -1, slope = 1, linetype="dashed") +
+  geom_abline(intercept = 0.25 -1, slope = 1, linetype="dashed")
+```
+
+
+The linear regression between Sample 1 and Sample 2 data shows very good linear correspondence between the two (R^2=0.91)
+```{r}
+Comparison %>%
+  lm(Energy.Sample2 ~ Energy.Sample1, data=.) %>%
+  summary()
+```
+## Conclusions
+
+The sequencing results show that positions 1 to 7, 17 to 25 have very good agreement to predicted motif by B1H and ChIP-seq data respectively (GGGTTTT and ATAcGAGTT), but the middle position 8 to 16 don't match. We need investigate more to find the causes.
+
+
+
+```{r fig.height=2.5, fig.width=8}
+# Make data for sequence alignment
+alignment = tibble(
+  base= strsplit(ChIP.reference, "")[[1]] %>% rep(8), 
+  library = factor(rep(c("Reference", "R1", "R2", "R3", "R4", "R5", "R6", "R7"), each=28),
+                   levels = c("R7", "R6", "R5", "R4", "R3", "R2", "R1", "Reference")),
+  x       = rep(1:28, 8)
+)
+
+alignment$base[29:32]    = 'N'
+alignment$base[61:64]  = 'N'
+alignment$base[93:96]  = 'N'
+alignment$base[125:128]  = 'N'
+alignment$base[157:160]  = 'N'
+alignment$base[189:192]  = 'N'
+alignment$base[221:224]  = 'N'
+
+alignment <- alignment %>%
+  mutate(mut = if_else(base=='N', 'yes', 'no'))
+
+# Generate the sequence alignment
+(plot.library <- ggplot(alignment, aes(x, library)) +
+  geom_text(aes(label=base, color=mut, size=mut)) + 
+  scale_x_continuous(breaks=1:10, expand = c(0.025, 0)) + xlab('') + ylab('') +
+  scale_color_manual(values=c('black', 'red')) + 
+  scale_size_manual(values=c(5, 6)) + 
+  ggseqlogo::theme_logo() + 
+  theme(legend.position = 'none', axis.text.x = element_blank()) )
+
+```
+
+```{r}
+Sample1.processed
+```
+
+```{r fig.height=7, fig.width=8}
+require(ggbeeswarm)
+
+Reference.Energy = (Sample1.processed %>%
+  filter(Mismatch == 0))$`Relative Energy`
+
+plot.distribution <- Sample1.processed %>%
+  mutate(Library = factor(Library, levels = c("Reference", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R3B", "R4N"))) %>%
+  ggplot(aes(y = forcats::fct_rev(Library), x = `Relative Energy` - Reference.Energy, color = Library)) +
+  geom_boxplot(notch = FALSE, outlier.shape = NA, color = "black", show.legend = FALSE) +
+  geom_quasirandom(shape = 16,  alpha = 0.8, groupOnX = FALSE, show.legend = FALSE) +
+  xlab("Relative binding energy (kT)") + ylab("") +
+  scale_x_continuous(expand = c(0, 0.5), breaks = seq(-2, 3), limits = c(-1.5, 3)) +
+  theme_bw() + theme(text = element_text(size=15), panel.grid.minor.x = element_blank())
+
+plot.distribution
+```
+
+
+```{r fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+plot.sample1 <- Sample1.processed %>%
+  filter(Mismatch <= 2) %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() %>%
+  TFCookbook::getEnergyMatrix() %>%
+  TFCookbook::plotEnergyLogo(col_scheme = col_scheme) +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("") +
+  scale_y_continuous(breaks = c(-1.5, -1, -0.5, 0, 0.5, 1, 1.5)， limits = c(-1.5, 1.5))
+
+plot.sample1.R3B <- Sample1.processed %>%
+  filter(Library == "R3B") %>%
+  mutate(Sequence = purrr::map2_chr(Sequence, Library, realign_sequence)) %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() %>%
+  TFCookbook::getEnergyMatrix() %>%
+  TFCookbook::addAnchorMatrix(anchor = substr(R3B.reference, 1, 6), position = 1, height = 0.5) %>%
+  TFCookbook::addAnchorMatrix(anchor = substr(R3B.reference, 11, 28), position = 11, height = 0.5) %>%
+  TFCookbook::plotEnergyLogo(col_scheme = col_scheme) +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("") +
+  scale_x_continuous(labels = NULL) +
+  scale_y_continuous(breaks = c(-1.5, -1, -0.5, 0, 0.5, 1, 1.5)， limits = c(-.5, .5))
+
+plot.sample1.R4N <- Sample1.processed %>%
+  filter(Library == "R4N") %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() %>%
+  TFCookbook::getEnergyMatrix() %>%
+  TFCookbook::addAnchorMatrix(anchor = substr(R4N.reference, 1, 12), position = 1, height = 0.5) %>%
+  TFCookbook::addAnchorMatrix(anchor = substr(R4N.reference, 17, 28), position = 17, height = 0.5) %>%
+  TFCookbook::plotEnergyLogo(col_scheme = col_scheme) +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("") +
+  scale_y_continuous(breaks = c(-1.5, -1, -0.5, 0, 0.5, 1, 1.5)， limits = c(-.5, .5))
+
+plot.blank <- ggplot() + theme(panel.background = element_rect(fill = "#FFFFFF"))
+
+plot.left <- cowplot::plot_grid(plot.library,
+                                plot.sample1,
+                               # plot.blank,
+                                plot.sample1.R3B,
+                                plot.sample1.R4N,
+                                     nrow = 5, ncol = 1, 
+                                     rel_heights  = c(3, 4,  2, 2))
+
+cowplot::plot_grid(plot.left, plot.distribution,
+                                   nrow = 1, ncol = 2)
+
+#ggsave("ZFP3.Summary.svg", plot=last_plot(), width = 16, height = 8)
+```
