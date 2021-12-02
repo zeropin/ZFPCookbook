@@ -1,17 +1,24 @@
+## Summary
+This sub-repository contains the processed data and detailed analysis workflow in R for our upcoming paper ["Quantitative analysis of ZFY and CTCF reveals the dependent recognition of tandem zinc finger proteins"](https://www.biorxiv.org/content/10.1101/637298v2). The raw sequencing data has been deposited in [NCBI GEO database](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE188166).
+
+Please contact me <zeropin@live.cn> if you have any issue or question.
+
+Zheng Zuo
+
 ## Background and Experimental Design
 
 CTCF, the well-established genome insulator in vertebrates, consists of 11 conserved C2H2- zinc fingers and is known to be sensitive to CpG methylation at specific position within the core motif. In 2013, it was reported that codon mutation R567W located at finger 11 can cause intellectural disabilities and autisms [(Gregor et. al)](https://pubmed.ncbi.nlm.nih.gov/23746550/), and the current mainstream thinking is the disease phenotype is driven by haploinsufficiency.
 
 In recent years, more missense mutations have been identified [(Enrico et. al)](https://pubmed.ncbi.nlm.nih.gov/31239556/) and parts of the structures (F2 to F7, F6 to F11) in complex with DNA have been solved [(Hashimoto et. al)](https://pubmed.ncbi.nlm.nih.gov/28529057/) [(Yin et.al)](https://pubmed.ncbi.nlm.nih.gov/29076501/), so I created a chimera structural model based on two separate structures (pdb [#5T0U](https://www.rcsb.org/structure/5T0U) and [#5YEL](https://www.rcsb.org/structure/5YEL)) and mapped currently known disease variants onto the structure (colored <span style="color: red;">red</span>), which showed clear structure-function correlation, i.e., all identified disease variants are located at those base-touching fingers.
 
-![](./Structural model.png)
+![Structure model](/images/Figure5.png)
 
 Also it is well established that CTCF is sensitive to CpG methylation [(Hark et. al)](https://pubmed.ncbi.nlm.nih.gov/10839547/), which is important to the regulation of some biological processes such as epigenetic silencing and imprinting control [(Schoenherr et. al)](https://www.nature.com/articles/ng1057z). However, there has been no systematic study of CTCF's response to other types of DNA modifications,  e.g., hydroxylmethylation (hmC), formylation (fC), and carboxylation (caC).
 ![](Methylation cycles.png)
 
 
 
-Given my previous work about ZFY, CTCF, and ZNF343, I want to specifically address following questions:
+Given my previous work about ZFY, CTCF, and ZNF343, we want to specifically address following questions:
 
 1) Is there any mutual influence between the upstream motif recognition and core site specificity and methylation sensitivity?
 
