@@ -1,0 +1,164 @@
+---
+title: "Replicates comparison for CTCF and ZFY proteins"
+author: Zheng Zuo
+date: Dec 2, 2021
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    df_print: paged
+    theme: lumen
+    highlight: pygments
+    toc: yes
+    toc_float: yes
+---
+
+## CTCF Replicates comparison
+
+### Importing data and pre-processing
+```{r Classification of sequence into library type, message=FALSE, warning=FALSE, include=FALSE}
+require(stringr)
+require(dplyr)
+require(tidyr)
+require(readr)
+require(ggplot2)
+require(magrittr)
+require(cowplot)
+
+#save.image("CTCF_122320.Rdata")
+load("./CTCF_122320.Rdata")
+
+reference.CTCF  = "AATGCAGTGCCCATGGCATCCGGTAGGGGGCACTA"
+reference.CTGGT = "AATGCAGTGCCCATGGCATCTGGTAGGGGGCACTA"
+reference.CAGGT = "AATGCAGTGCCCATGGCATCAGGTAGGGGGCACTA"
+reference.CGGGT = "AATGCAGTGCCCATGGCATCGGGTAGGGGGCACTA"
+
+
+property_type <- function(seq) {
+  if (str_detect(seq, "^AA") == TRUE) return("un")
+  else if (str_detect(seq, "^AT") == TRUE) return("un")
+  else if (str_detect(seq, "^GT") == TRUE) return("mC")
+  else if (str_detect(seq, "^TC") == TRUE) return("hmC")
+  else if (str_detect(seq, "^CG") == TRUE) return("fC")
+  else if (str_detect(seq, "^GC") == TRUE) return("caC")
+  else return("Unclassified")
+}
+
+
+library_type <- function(seq) {
+  if(     str_detect(seq, "^ATGC....CCCAGTGGCATCCGGTAGGGGGCACTA") == TRUE) return("R2L")
+  else if(str_detect(seq, "^AATGC....CCCATGGCATC.GGTAGGGGGCACTA") == TRUE) return("R2")
+  else if(str_detect(seq, "^GTTGC....CCCATGGCATC.GGTAGGGGGCACTA") == TRUE) return("R2")
+  else if(str_detect(seq, "^TCTGC....CCCATGGCATC.GGTAGGGGGCACTA") == TRUE) return("R2")
+  else if(str_detect(seq, "^CGTGC....CCCATGGCATC.GGTAGGGGGCACTA") == TRUE) return("R2")
+  else if(str_detect(seq, "^GCTGC....CCCATGGCATC.GGTAGGGGGCACTA") == TRUE) return("R2")
+  else if(str_detect(seq, "^AATGC....CCCATGGCATCTTGTAGGGGGCACTA") == TRUE) return("R2-m1")
+  else if(str_detect(seq, "^AATGC....CCCATGGCATGTTGTAGGGGGCACTA") == TRUE) return("R2-m2")
+  else if(str_detect(seq, "^AATGC....CCCATGGCATGTTTTAGGGGGCACTA") == TRUE) return("R2-m3")
+  else if(str_detect(seq, "^AA...AGTGCCCATGGCATC.GGTAGGGGGCACTA") == TRUE) return("R1")
+  else if(str_detect(seq, "^AATGCAGTG...ATGGCATC.GGTAGGGGGCACTA") == TRUE) return("R3")
+  else return("Unclassified")
+}
+
+
+
+CTCF.F1_F9.Sample1.processed %<>%
+  mutate(Library = purrr::map_chr(Sequence, library_type)) %>%
+  dplyr::filter((Property != "Unclassified") & (Library != "Unclassified") & (!str_detect(Sequence, "N")))
+
+CTCF.F1_F9.Sample2.processed %<>%
+  mutate(Library = purrr::map_chr(Sequence, library_type)) %>%
+  dplyr::filter((Property != "Unclassified") & (Library != "Unclassified") & (!str_detect(Sequence, "N")))
+  
+
+CTCF.F1_F11.Sample1.processed %<>%
+  mutate(Library = purrr::map_chr(Sequence, library_type)) %>%
+  dplyr::filter((Property != "Unclassified") & (Library != "Unclassified") & (!str_detect(Sequence, "N")))
+
+CTCF.F1_F11.Sample2.processed %<>%
+  mutate(Library = purrr::map_chr(Sequence, library_type)) %>%
+  dplyr::filter((Property != "Unclassified") & (Library != "Unclassified") & (!str_detect(Sequence, "N")))
+
+CTCF.R567W.Sample1.processed %<>%
+  mutate(Library = purrr::map_chr(Sequence, library_type)) %>%
+  dplyr::filter((Property != "Unclassified") & (Library != "Unclassified") & (!str_detect(Sequence, "N")))
+
+CTCF.R567W.Sample2.processed %<>%
+  mutate(Library = purrr::map_chr(Sequence, library_type)) %>%
+  dplyr::filter((Property != "Unclassified") & (Library != "Unclassified") & (!str_detect(Sequence, "N")))
+
+```
+
+
+### Comparing difference between replicates for each CTCF construct
+```{r}
+inner_join(CTCF.F1_F9.Sample1.processed, CTCF.F1_F9.Sample2.processed,
+           by = "Sequence", suffix = c(".Sample1", ".Sample2")) %>%
+  filter(Property.Sample1 == "un", Library.Sample1 != "R2L") %>%
+  mutate(Sample = "CTCF(F1-F9)") -> Replicates.F1_F9
+
+inner_join(CTCF.F1_F11.Sample1.processed, CTCF.F1_F11.Sample2.processed,
+           by = "Sequence", suffix = c(".Sample1", ".Sample2")) %>%
+  filter(Property.Sample1 == "un", Library.Sample1 != "R2L") %>%
+  mutate(Sample = "CTCF(F1-F11)", Energy.Sample2 = Energy.Sample2-0.3) -> Replicates.F1_F11
+
+inner_join(CTCF.R567W.Sample1.processed, CTCF.R567W.Sample2.processed,
+           by = "Sequence", suffix = c(".Sample1", ".Sample2")) %>%
+  filter(Property.Sample1 == "un", Library.Sample1 != "R2L") %>%
+  mutate(Sample = "CTCF(R567W)", Energy.Sample2 = Energy.Sample2-0.3) -> Replicates.R567W
+
+
+Replicates.F1_F11
+```
+
+```{r fig.height=3.2, fig.width=8.5}
+
+rbind(Replicates.F1_F9, Replicates.F1_F11, Replicates.R567W) %>%
+  ggplot(aes(x = Energy.Sample1, y = Energy.Sample2)) +
+  geom_point() +
+  facet_wrap(~Sample) +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank())
+
+
+```
+
+
+### Importing replicates data for ZFY(F7-F13)
+
+```{r message=FALSE, warning=FALSE}
+
+ZFY.Sample1 <- readr::read_table("mZFY1(F7-F13).Sample1.processed")
+
+ZFY.Sample2 <- readr::read_table("mZFY1(F7-F13).Sample2.processed")
+
+
+(Replicates.ZFY <- inner_join(ZFY.Sample1， ZFY.Sample2, by = 'Sequence', suffix = c(".Sample1", ".Sample2")) %>%
+  mutate(Sample = "ZFY(F7-F13)") %>%
+  select(Sequence, Sample, Energy.Sample1 = ratio.Sample1, Energy.Sample2 = ratio.Sample2) %>%
+  mutate(Energy.Sample2 = Energy.Sample2 + 0.7))
+```
+
+
+```{r fig.height=3.2, fig.width=11}
+rbind(Replicates.F1_F9, Replicates.F1_F11, Replicates.R567W) %>%
+  select(Sequence, Sample, Energy.Sample1, Energy.Sample2) %>%
+  rbind(Replicates.ZFY) %>%
+  mutate(Sample = factor(Sample, levels = c("ZFY(F7-F13)", "CTCF(F1-F11)", "CTCF(F1-F9)", "CTCF(R567W)"))) %>%
+  ggplot(aes(x = Energy.Sample1, y = Energy.Sample2)) +
+  ggpubr::stat_regline_equation(label.x = -0.5, label.y = 4.5, colour = "black",
+                                aes(label = ..adj.rr.label..)) +
+  geom_abline(slope = 1, intercept = 0.5, linetype = "dashed") +
+  geom_abline(slope = 1, intercept = -0.5, linetype = "dashed") +
+  geom_point(size=0.75) +
+  facet_wrap(~Sample, ncol = 4) +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank()) +
+  xlab("Relative binding energy (kT), Replicate 1") +
+  ylab("Relative binding energy (kT), Replicate 2")
+
+#ggsave("Replicates comparison.png", height = 3.2, width = 11)
+```
+
+
+
