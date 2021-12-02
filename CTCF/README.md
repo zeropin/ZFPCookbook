@@ -1,3 +1,8 @@
+## Introduction
+This subrepository of ZFPCookbook contains all the processed data and analysis workflow of CTCF in R for our upcoming paper ["Quantitative analysis of ZFY and CTCF reveals dependent recognition of tandem zinc finger proteins"](https://www.biorxiv.org/content/10.1101/637298v2). The raw sequencing data has been deposited at [NCBI GEO database](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE188166).
+
+Please contact me <zeropin@live.cn> if you have any question.
+
 ## Background and Experimental Design
 
 CTCF, the well-established genome insulator in vertebrates, consists of 11 conserved C2H2- zinc fingers and is known to be sensitive to CpG methylation at specific position within the core motif. In 2013, it was reported that codon mutation R567W located at finger 11 can cause intellectural disabilities and autisms [(Gregor et. al)](https://pubmed.ncbi.nlm.nih.gov/23746550/), and the current mainstream thinking is the disease phenotype is driven by haploinsufficiency.
