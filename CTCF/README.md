@@ -19,11 +19,13 @@ Given my previous work about ZFY, CTCF, and ZNF343, I want to specifically addre
 
 
 ### Libraries design
+![](../images/CTCF Spec-seq libraries design.png)
 
 To address above questions, I built three protein constructs, i.e., hisHALO-CTCF(F1-F9) as negative control, hisHALO-CTCF(F1-F11), and hisHALO-CTCF-R567W, and succesfully used NEB in-vitro expression system to make the proteins for DNA binding and EMSA separations. Also I designed following sequencing libraries to randomize different positions of upstream sequence (R1, R2, and R3) with position 2 in Core site randomized simutaneously. Some previous work showed CpG methylation effect at position 2 and 3 is primarily caused by cytosine methylation at position 2, so I introduced different types of modifications to the upper strand of DNA duplex at position 2 in R2 libraries (R2-mC, hmC, fC, and caC), wheares each type of modification is associated with some unique barcodes at position 18-19 for sequencing readout and identification.
 
 ![Libraries design](../images/CTCF Spec-seq libraries design.png)
 
-![](../images/CTCF Spec-seq libraries design.png)
+
+
 ### EMSA separation
 ![EMSA gel](../images/2020.12.19_CTCF_annotated.JPG)
