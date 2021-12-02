@@ -26,7 +26,7 @@ require(magrittr)
 require(cowplot)
 
 #save.image("CTCF_122320.Rdata")
-load("./CTCF_122320.Rdata")
+load("../data/CTCF_122320.Rdata")
 
 reference.CTCF  = "AATGCAGTGCCCATGGCATCCGGTAGGGGGCACTA"
 reference.CTGGT = "AATGCAGTGCCCATGGCATCTGGTAGGGGGCACTA"
@@ -128,9 +128,9 @@ rbind(Replicates.F1_F9, Replicates.F1_F11, Replicates.R567W) %>%
 
 ```{r message=FALSE, warning=FALSE}
 
-ZFY.Sample1 <- readr::read_table("mZFY1(F7-F13).Sample1.processed")
+ZFY.Sample1 <- readr::read_table("../mZFY1(F7-F13).Sample1.processed")
 
-ZFY.Sample2 <- readr::read_table("mZFY1(F7-F13).Sample2.processed")
+ZFY.Sample2 <- readr::read_table("../mZFY1(F7-F13).Sample2.processed")
 
 
 (Replicates.ZFY <- inner_join(ZFY.Sample1， ZFY.Sample2, by = 'Sequence', suffix = c(".Sample1", ".Sample2")) %>%

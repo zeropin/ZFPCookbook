@@ -14,7 +14,7 @@ output:
 ---
 
 ## Figure 3 in the paper
-![](Figure 3.png)
+![](../images/Figure 3.png)
 
 ```{r Classification of sequence into library type, message=FALSE, warning=FALSE, include=FALSE}
 require(stringr)
@@ -28,7 +28,7 @@ require(cowplot)
 reference.CTCF = "AATGCAGTGCCCATGGCATCCGGTAGGGGGCACTA"
 
 #save.image("CTCF_122320.Rdata")
-load("./CTCF_122320.Rdata")
+load("../data/CTCF_122320.Rdata")
 
 property_type <- function(seq) {
   if (str_detect(seq, "^AA") == TRUE) return("un")

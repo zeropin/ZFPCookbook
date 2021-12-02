@@ -14,7 +14,7 @@ output:
 ---
 
 ## Background
-![](./Figure 3.png)
+![](../images/Figure 3.png)
 
 
 
@@ -28,7 +28,7 @@ require(magrittr)
 require(cowplot)
 
 #save.image("CTCF_122320.Rdata")
-load("./CTCF_122320.Rdata")
+load("../data/CTCF_122320.Rdata")
 
 reference.CTCF  = "AATGCAGTGCCCATGGCATCCGGTAGGGGGCACTA"
 reference.CTGGT = "AATGCAGTGCCCATGGCATCTGGTAGGGGGCACTA"
