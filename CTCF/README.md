@@ -24,6 +24,6 @@ To address above questions, I built three protein constructs, i.e., hisHALO-CTCF
 
 ![Libraries design](../images/CTCF Spec-seq libraries design.png)
 
-
+![](../images/CTCF Spec-seq libraries design.png)
 ### EMSA separation
 ![EMSA gel](../images/2020.12.19_CTCF_annotated.JPG)
