@@ -1,0 +1,398 @@
+---
+title: "Summary of ZNF675 Spec-seq data (072121 run)"
+author: Zheng Zuo
+date: "Jul 21, 2021"
+output:
+  html_document:
+    df_print: paged
+    theme: lumen
+    highlight: pygments
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r include=FALSE}
+library(stringr)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(TFCookbook)
+library(ggrepel)
+library(ggalluvial)
+
+ChIP.reference    = "CCACAGGACCAGAAGCCTAGGAGGACAAAATGG"
+
+
+library_type <- function(seq) {
+  if      (stringr::str_detect(seq, "CCACAGGACCAGAAGCCTAGGAGGACAAAATGG")) return("reference")
+  else if (stringr::str_detect(seq, "CCACAGGACCAGAAGCCTAG....ACAAAATGG")) return("Core-1")
+  else if (stringr::str_detect(seq, "CCACAGGACCAGAAGCCTAGGAGG....AATGG")) return("Core-2")
+  else if (stringr::str_detect(seq, "....AGGACCAGAAGCCTAGGAGGACAAAATGG")) return("Upstream-1")
+  else if (stringr::str_detect(seq, "CCAC....CCAGAAGCCTAGGAGGACAAAATGG")) return("Upstream-2")
+  else if (stringr::str_detect(seq, "CCACAGGA....AAGCCTAGGAGGACAAAATGG")) return("Upstream-3")
+  else if (stringr::str_detect(seq, "CCACAGGACCAG....CTAGGAGGACAAAATGG")) return("Upstream-4")
+  else if (stringr::str_detect(seq, "CCACAGGACCAGAAGC....GAGGACAAAATGG")) return("Upstream-5")
+  else if (stringr::str_detect(seq, "TCACTTATACAGCGATCTAGCATTAAAAAATGG")) return("background")
+  else if (seq %in% gSites.Z675.nonTE) return("non-TEs")
+  else if (seq %in% gSites.Z675.TE)    return("TEs")
+  else return("Unclassified")
+}
+
+library_order = c("reference", "Core-1", "Core-2", 
+                  "Upstream-1", "Upstream-2", "Upstream-3", "Upstream-4", ".Upstream-5",
+                  "TEs", "non-TEs", "background")
+
+col_scheme = ggseqlogo::make_col_scheme(chars=c('A', 'C', 'G', 'T'),
+                             cols=c('darkgreen', 'blue', 'orange', 'red'))
+
+
+gSites.Z675 <- rtracklayer::import("ZNF675_spec_seq_genomic_library_500.fasta")
+
+gSites.Z675.nonTE <- gSites.Z675[1:200] %>% stringi::stri_sub(from = 18, to = 50)
+
+gSites.Z675.TE <- gSites.Z675[201:500] %>% stringi::stri_sub(from = 18, to = 50)
+
+
+gSites.Z675.TEfamily <- (read_table2("ZNF675_spec_seq_genomic_library_TE_coords_families.sorted.bed", col_names = FALSE))$X4
+
+names(gSites.Z675.TEfamily) <- gSites.Z675.TE
+
+gSites.Z675.TEfamily["TCACAGGCCCAGAGGGCTAGGGGGGCTGAATGA"]
+```
+
+
+## Background and Experimental design
+
+ZNF675 contains 11 non-degenerate zinc fingers. According to Abhi's analysis, finger 1 to 5 are predicted to recognize some core motif, whereas fingers 6 to 11 are engaged in upstream motif recognition, which are usually found in transposable elements (TEs).
+
+So in this work, we want to address following questions:
+
+1) Are the predicted core and upstream motifs correct or not?
+
+2) What is the function of accessory fingers (F6 to F11)? Are the accessory fingers required for the recogntion of TEs over non-TEs?
+
+### Spec-seq libraries design
+
+To address above questions, we picked some reference site that is supposed to be very good binding site, and randomize it systematically to make synthetic DNA libraries. In the meantime, we picked randomly ~300 TEs and 200 non-TEs that are bound by Z675 in ChIP-exo experiment, synthesized them to build some representative genomic pools, and ran them together with synthetic DNA libraies as below.
+
+During my run at June, I noticed significant number of "outlier sequences", which show exceptional binding affinity but cannot be explained by the putative motif from ChIP-seq data. Hypothetically, some outlier sequence could form secondary structure and might get recognized by ZNF675 in some unusually way we don't understand. To mitigate this problem, I redesgned the synthetic libraries based on alternative reference site, in the hope that those outliers won't show up in the new library anymore.
+
+![Predicted Motifs by B1H data and Kundaje lab analysis of ChIP-exo data](./Library design.png)
+
+
+
+```{r include=FALSE}
+#save.image("ZNF675.RData")
+load("ZNF675.RData")
+```
+
+```{r warning=FALSE, include=FALSE, eval = FALSE}
+Full.Sample1.processed <- 
+  inner_join(Full.Sample1.Bound, Full.Sample1.Unbound, by = "Sequence") %>%
+  mutate(Library = factor(purrr::map_chr(Sequence, library_type), levels = library_order)) %>%
+  dplyr::rename(Bound = 'Reads.x', Unbound = 'Reads.y') %>%
+  filter(Library != "Unclassified", !str_detect(Sequence, "N")) %>%
+  mutate("B/Ub" = Bound / Unbound,
+         "Relative Energy" = -log(Bound / Unbound),
+         Mismatch= TFCookbook::countMismatch(Sequence, ChIP.reference),
+         Element = if_else(!Library %in% c("TEs", "non-TEs"), "Synthetic" ,"Genomic")
+         ) %>%
+  arrange(`Relative Energy`)
+
+Full.Sample2.processed <- 
+  inner_join(Full.Sample2.Bound, Full.Sample2.Unbound, by = "Sequence") %>%
+  mutate(Library = factor(purrr::map_chr(Sequence, library_type), levels = library_order)) %>%
+  dplyr::rename(Bound = 'Reads.x', Unbound = 'Reads.y') %>%
+  filter(Library != "Unclassified", !str_detect(Sequence, "N")) %>%
+  mutate("B/Ub" = Bound / Unbound,
+         "Relative Energy" = -log(Bound / Unbound),
+         Mismatch = TFCookbook::countMismatch(Sequence, ChIP.reference),
+         Element = if_else(Library %in% c("TEs", "non-TEs"), "Genomic", "Synthetic")
+         ) %>%
+  arrange(`Relative Energy`)
+
+F1_F6.Sample1.processed <- 
+  inner_join(F1_F6.Sample1.Bound, F1_F6.Sample1.Unbound, by = "Sequence") %>%
+  mutate(Library = factor(purrr::map_chr(Sequence, library_type), levels = library_order)) %>%
+  dplyr::rename(Bound = 'Reads.x', Unbound = 'Reads.y') %>%
+  filter(Library != "Unclassified", !str_detect(Sequence, "N")) %>%
+  mutate("B/Ub" = Bound / Unbound,
+         "Relative Energy" = -log(Bound / Unbound),
+         Mismatch= TFCookbook::countMismatch(Sequence, ChIP.reference),
+         Element = if_else(Library %in% c("TEs", "non-TEs"), "Genomic", "Synthetic")
+         ) %>%
+  arrange(`Relative Energy`)
+
+F1_F6.Sample2.processed <- 
+  inner_join(F1_F6.Sample2.Bound, F1_F6.Sample2.Unbound, by = "Sequence") %>%
+  mutate(Library = factor(purrr::map_chr(Sequence, library_type), levels = library_order)) %>%
+  dplyr::rename(Bound = 'Reads.x', Unbound = 'Reads.y') %>%
+  filter(Library != "Unclassified", !str_detect(Sequence, "N")) %>%
+  mutate("B/Ub" = Bound / Unbound,
+         "Relative Energy" = -log(Bound / Unbound),
+         Mismatch = TFCookbook::countMismatch(Sequence, ChIP.reference),
+         Element = if_else(Library %in% c("TEs", "non-TEs"), "Genomic", "Synthetic")
+         ) %>%
+  arrange(`Relative Energy`)
+
+
+
+Reference.Full.Sample1.Energy = (Full.Sample1.processed %>%
+  filter(Sequence == ChIP.reference))$`Relative Energy`
+
+Reference.Full.Sample2.Energy = (Full.Sample2.processed %>%
+  filter(Sequence == ChIP.reference))$`Relative Energy`
+
+Reference.F1_F6.Sample1.Energy = (F1_F6.Sample1.processed %>%
+  filter(Sequence == ChIP.reference))$`Relative Energy`
+
+Reference.F1_F6.Sample2.Energy = (F1_F6.Sample2.processed %>%
+  filter(Sequence == ChIP.reference))$`Relative Energy`
+
+require(magrittr)
+Full.Sample1.processed %<>% mutate(Energy = `Relative Energy`-Reference.Full.Sample1.Energy)
+Full.Sample2.processed %<>% mutate(Energy = `Relative Energy`-Reference.Full.Sample2.Energy)
+F1_F6.Sample1.processed %<>% mutate(Energy = `Relative Energy`-Reference.F1_F6.Sample1.Energy)
+F1_F6.Sample2.processed %<>% mutate(Energy = `Relative Energy`-Reference.F1_F6.Sample2.Energy)
+```
+
+## Summary of Sequencing data 
+
+```{r}
+Full.Sample1.processed
+```
+
+```{r}
+Full.Sample1.processed %>%
+  group_by(Library) %>%
+  summarize("Number of variants in library"=n(),
+            "Total Bound reads"=sum(Bound),
+            "Total Unbound reads"=sum(Unbound),
+            "Bound/Unbound" = sum(Bound)/sum(Unbound))
+```
+
+
+### Results for genomic elements only
+```{r}
+Full.Sample1.processed %>% filter(Library %in% c("TEs", "non-TEs"))
+```
+
+
+## Reproducibility test
+
+The replicates are very reproducible and most variants fall within the 0.25kT energy deviation bounds (dashed lines).
+```{r fig.height=4, fig.width=8.5}
+inner_join(Full.Sample1.processed, Full.Sample2.processed,
+           by = c("Sequence", "Library", "Element"), suffix = c(".Sample1", ".Sample2")) %>%
+  mutate(Construct = "Full") -> Replicates.Full
+
+inner_join(F1_F6.Sample1.processed, F1_F6.Sample2.processed,
+           by = c("Sequence", "Library", "Element"), suffix = c(".Sample1", ".Sample2")) %>%
+  mutate(Construct = "F1-F6") -> Replicates.F1_F6
+
+rbind(Replicates.Full, Replicates.F1_F6) %>%
+  mutate(Construct = factor(Construct, levels = c("Full", "F1-F6"))) %>%
+  ggplot(aes(x = `Energy.Sample1`,
+             y = `Energy.Sample2`,
+             color = Library, shape = Element)) +
+  geom_point(size = 1) +
+  geom_abline(slope = 1, intercept = c(0.25, -0.25), linetype = "dashed") +
+  xlab("Relative binding energy, Replicate #1 (kT)") +
+  ylab("Relative binding energy, Replicate #2 (kT)") +
+  theme_bw() + facet_wrap(~Construct)
+
+#ggsave("Replicates comparison for ZNF675.eps", width = 6, height = 4)
+```
+
+
+## Build motif models based on all double variants of ChIP-reference site
+
+### Full construct
+```{r fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+Full.Sample1.processed %>%
+  filter(Mismatch.ChIP <= 2) %>%
+  TFCookbook::buildEnergyModel() %>%
+  TFCookbook::getEnergyMatrix() %>%
+  TFCookbook::plotEnergyLogo(col_scheme = col_scheme) +
+  xlim(0.5, 29) +
+  ggtitle("Motif of ZNF675\nSample #1") +
+  annotate('segment', x = .5, xend=19, y=-1.15, yend=-1.15, size=1) + 
+  annotate('text', x=10, y=-1.25, label='Upstream Motif', color = "blue", size = 6) + 
+  annotate('segment', x = 20, xend=28, y=-1.15, yend=-1.15, size=1) + 
+  annotate('text', x=24, y=-1.25, label='Core Motif', color = "red", size = 6)
+
+#ggsave("ZNF675(Full).Sample1.logo.eps", plot=last_plot(), width = 10, height = 4.5)
+```
+
+### Trucated F1-F6 construct
+```{r fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+F1_F6.Sample1.processed %>%
+  filter(Mismatch.ChIP <=2) %>%
+  TFCookbook::buildEnergyModel() %>%
+  TFCookbook::getEnergyMatrix() %>%
+  TFCookbook::plotEnergyLogo(col_scheme = col_scheme) +
+  xlim(0.5, 29) +
+  ggtitle("Motif of ZNF675(F1-F6)\nSample #1") +
+  annotate('segment', x = .5, xend=19, y=-0.8, yend=-0.8, size=1) + 
+  annotate('text', x=10, y=-0.9, label='Upstream Motif', color = "blue", size = 6) + 
+  annotate('segment', x = 20, xend=28, y=-0.8, yend=-0.8, size=1) + 
+  annotate('text', x=24, y=-0.9, label='Core Motif', color = "red", size = 6)
+
+#ggsave("ZNF675(F1-F6).Sample1.logo.eps", plot=last_plot(), width =10, height = 4.5)
+```
+
+## Predicting binding energy based on derived motif models
+
+If we use the motif model derived from all double variants of the reference site to predict all other binding sites' energy, it is clear that the correlation for TEs(0.51) is better than for non-TEs(0.048), most likely because the existence of upstream motif feature within those TEs.
+
+```{r fig.height=5, fig.width=10.8, warning = FALSE}
+Full.Sample1.processed %>%
+  filter(Mismatch.ChIP <= 2) %>%
+  TFCookbook::buildEnergyModel() -> Model.Full.DoubleVariants
+
+Full.Sample1.processed %>%
+  TFCookbook::buildEnergyModel() -> Model.Full.AllVariants
+
+Full.Sample1.processed %>%
+  mutate(Predicted.Energy = TFCookbook::predictEnergy(Sequence, Model.Full.DoubleVariants),
+         Element = factor(Element, levels = c("Synthetic", "Genomic"))) %>%
+  ggplot(aes(x = Predicted.Energy, y = Energy, color = Library)) +
+  geom_point(aes(color = Library, shape = Element), size = 1) +
+  ggpubr::stat_regline_equation(aes(label =  ..adj.rr.label..), label.x = 3.5, show.legend = FALSE) +
+  ggrepel::geom_label_repel(aes(label = Sequence), show.legend = FALSE, size = 1.8,
+                   data = function(x) filter(x, Predicted.Energy-Energy>2, Predicted.Energy<2.5)) +
+  xlab("Predicted binding energy by model trained from synthetc elements (kT)") +
+  ylab("Observed binding energy (kT)") + ylim(-3, 1.5) + theme_bw() +
+  facet_wrap(~Element)
+```
+
+
+## Variants distribution
+
+### Full construct distribution
+```{r fig.height=7, fig.width=8,  warning=FALSE}
+require(ggbeeswarm)
+
+plot.Full.Sample1.distribution <- Full.Sample1.processed %>%
+  mutate(Library = factor(Library, levels = c("ChIP.reference",
+                                              "ChIP.Core-1","ChIP.Core-2",
+                                              "ChIP.Upstream-1","ChIP.Upstream-2","ChIP.Upstream-3","ChIP.Upstream-4",
+                                              "ChIP.Upstream-5","ChIP.background",
+                                              "TEs","non-TEs"))) %>%
+  ggplot(aes(y = forcats::fct_rev(Library), x = Energy, color = Library)) +
+  geom_boxplot(notch = FALSE, outlier.shape = NA, color = "black", show.legend = FALSE) +
+  geom_quasirandom(shape = 16,  alpha = 0.8, groupOnX = FALSE, show.legend = FALSE) +
+  xlab("Relative binding energy (kT)") + ylab("") +
+#  scale_x_continuous(expand = c(0, 0.5), breaks = seq(-1, 5), limits = c(-3, 2)) +
+  theme(text = element_text(size=15))
+
+plot.Full.Sample1.distribution
+
+#ggsave("Variants distribution for ZNF675.svg", height = 7, width = 8)
+```
+
+
+### Truncated construct distribuion
+```{r fig.height=7, fig.width=8, warning=FALSE}
+plot.F1_F6.Sample1.distribution <- F1_F6.Sample1.processed %>%
+ # filter(Bound + Unbound > 500) %>%
+ # mutate(Library = if_else(Mismatch.ChIP==0, "ChIP.reference", Library)) %>%
+  mutate(Library = factor(Library, levels = c("ChIP.reference",
+                                              "ChIP.Core-1","ChIP.Core-2",
+                                              "ChIP.Upstream-1","ChIP.Upstream-2","ChIP.Upstream-3","ChIP.Upstream-4",
+                                              "ChIP.Upstream-5","ChIP.background",
+                                              "TEs","non-TEs"))) %>%
+  ggplot(aes(y = forcats::fct_rev(Library), x = Energy, color = Library)) +
+  geom_boxplot(notch = FALSE, outlier.shape = NA, color = "black", show.legend = FALSE) +
+  geom_quasirandom(shape = 16,  alpha = 0.8, groupOnX = FALSE, show.legend = FALSE) +
+  xlab("Relative binding energy (kT)") + ylab("") + 
+#  scale_x_continuous(expand = c(0, 0.5), breaks = seq(-1, 5), limits = c(-3, 2)) +
+  theme(text = element_text(size=15))
+
+plot.F1_F6.Sample1.distribution
+
+#ggsave("Variants distribution for ZNF675(F1-F6).svg", height = 7, width = 8)
+```
+
+So overall, there are a lot of "outliers" sites that are better than reference site, indicating there are some alternative mode of recogniion we don't fully understand.
+
+
+## TE vs. non-TEs
+In the variants distribution plot, it is easy to see that TEs bind better than non-TEs under full construct, but non-TEs are slightly better than TEs under truncated construct. The intuitive intepretation is the TE sites have some features that match the upstream specificity of Z675, so accessory fingers F7-F11 are required to facilitate preferential recogniion of TEs over non-TEs. In other words, Z675 needs to be long to do its TE inactivation job.
+
+### Comparison of relative binding energy under different constructs
+
+If we always choose the reference site to have energy 0, we would be able to compare relaive binding energy values for picked genomic sites under full and truncated constructs respectively. Apparenly there are some fraction of TEs that are low to intermediate affinity under the truncated core construct, but are significantly better in the full construct, poining to the same conclution that "Long ZFP need to be long to prferentially recognize TEs and do inactivation job."
+
+```{r}
+inner_join(Full.Sample1.processed, F1_F6.Sample1.processed,
+           by = c("Sequence", "Library"), suffix = c(".Full", ".F1_F6")) %>%
+  filter(Library %in% c("TEs", "non-TEs")) %>%
+  mutate(TEfamily = if_else(Library=="TEs", gSites.Z675.TEfamily[Sequence], "Non-TEs")) %>%
+  ggplot(aes(x = Energy.F1_F6, y = Energy.Full, color = Library)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  theme_bw() +
+  xlab("Energy under ZNF675(F1-F6) construct (kT)") +
+  ylab("Energy under ZNF675-Full construct (kT)")
+
+#ggsave("ZNF675 TEs vs. non-TEs.png", width = 5, height = 3)
+```
+
+### Associating each genomic element with corresponding transposon family
+
+We can define a term called Lift to describe the extra amount binding energy gained through the help of upstream fingers. The higher this number, the more likely the element contains some upstream motif feature. It is clear the most significantly lifted elements are all derived from TEs, either THE1-int or MST familiy, whereas non-TEs show very low lift and thus almost no upstream motif features.
+
+
+```{r}
+inner_join(Full.Sample1.processed, F1_F6.Sample1.processed,
+           by = c("Sequence", "Library"), suffix = c(".Full", ".F1_F6")) %>%
+  filter(Library %in% c("TEs", "non-TEs")) %>%
+  mutate(TEfamily = if_else(Library=="TEs", gSites.Z675.TEfamily[Sequence], "Non-TEs"),
+         Lift = Energy.Full - Energy.F1_F6,
+         Upstream = substr(Sequence, start = 1, stop = 19),
+         Core     = substr(Sequence, start = 20, stop = 30)) %>%
+  arrange(Lift) %>%
+  select(Upstream, Core, TEfamily, Energy.F1_F6, Energy.Full, Lift)
+```
+
+If we classify those picked genomic elements by TF family and group them accordingly, then most TE family elements are significantly lifted compared to non-TEs.
+
+
+```{r}
+inner_join(Full.Sample1.processed, F1_F6.Sample1.processed,
+           by = c("Sequence", "Library"), suffix = c(".Full", ".F1_F6")) %>%
+  filter(Library %in% c("TEs", "non-TEs")) %>%
+  mutate(TEfamily = if_else(Library=="TEs", gSites.Z675.TEfamily[Sequence], "Non-TEs"),
+         Lift = Energy.Full - Energy.F1_F6) %>%
+  mutate(Group = case_when(TEfamily %in% c("THE1A-int", "THE1B", "THE1B-int", "THE1C-int", "THE1D-int") ~ "THE1",
+                           substr(TEfamily, 1, 3) == "MST" ~ "MST",
+                           substr(TEfamily, 1, 3) == "Alu" ~ "Alu",
+                           TEfamily == "Non-TEs" ~ "Non-TEs",
+                           TRUE ~ "Other TEs")) %>%
+  mutate(Group = factor(Group, levels = c("Non-TEs", "THE1", "MST", "Alu", "Other TEs"))) %>%
+  #mutate(Group = factor(substr(TEfamily, 1, 2))) %>%
+  select(Sequence, TEfamily, Energy.F1_F6, Energy.Full, Lift, Group)%>%
+  arrange(desc(Lift)) %>%
+  ggplot(aes(x = Group, y = Lift, color = Group)) +
+  geom_boxplot(notch = FALSE, outlier.shape = NA, color = "black", show.legend = FALSE) +
+  geom_quasirandom(shape = 16,  alpha = 0.8, groupOnX = TRUE, show.legend = FALSE) +
+  ylab("Gain effect by Upstream fingers (kT)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+```
+
+## Summary of Spec-seq results
+
+![Summary](./ZNF675 work summary (072121).png)
+
+## Alignment of all THE1-int family transposon elements
+
+It is possible to reconstruct the original, active version of THE1 transposon, which contains a Gag coding gene inside. It turned out Z675 is targeting the coding region of Gag. Aligning all ~6,000 instances of THE1B-int to the reconstructed consensus site shows us that most of them have mutated significantly from the original version, eiher by SNP or indel. It might be worth further investigation.
+
+![](./THE1-int instances alignment.png)
+
+
