@@ -1,0 +1,2 @@
+ZNF140 is a human zinc finger protein containing 10 fingers. In our to-be-published work, we found it recognizes two distinct motifs using first four fingers, i.e., Compressed and Extended motifs respectively.
+We hypothesized that this "One TF, two motifs" phenomenon is not unique and might be relevant for its biological function of Transposon silencing. I performed Spec-seq to quantitatively characterize its specificity and confirmed this dual motifs structure.
