@@ -1,0 +1,87 @@
+---
+title: "Figure S4"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  pdf_document:
+    toc: yes
+author: Zheng Zuo
+date:
+  04/16/2022
+---
+
+
+```{r message=FALSE, warning=FALSE}
+require(dplyr)
+require(GenomicRanges)
+require(TFCookbook)
+
+load("ZFP3.motif.RData")
+```
+
+## HEK293 cells data
+```{r message=FALSE, warning=FALSE}
+ChIP.H293.peaks <- read.table("ENCFF107KSN.bed") %>%
+                   GenomicRanges::makeGRangesFromDataFrame(seqnames.field = "V1",
+                                                           start.field    = "V2",
+                                                           end.field      = "V3") %>% unique()
+
+
+ZFP3.sites <- TFCookbook::matchPEM(PEM = ZFP3.Core.PEM,
+                                   subject = ChIP.H293.peaks,
+                                   genome  = "hg38",
+                                   out     = "positions",
+                                   E.cutoff= -5)
+
+ZFP3.sites$predicted.Core.Energy     <- ZFP3.sites$predicted.Energy
+ZFP3.sites$predicted.Energy          <- NULL
+ZFP3.sites$predicted.Upstream.Energy <- TFCookbook::predictEnergy(ZFP3.sites$Sequence, ZFP3.Upstream.PEM)
+ZFP3.sites$predicted.Full.Energy     <- ZFP3.sites$predicted.Upstream.Energy + ZFP3.sites$predicted.Core.Energy
+
+ZFP3.highAffinity.sites <- subset(ZFP3.sites, predicted.Upstream.Energy < (-4))
+
+DNase.H293.peaks <- read.table("DNase-seq signals/ENCFF285OXK.H293T.bed") %>%
+                   GenomicRanges::makeGRangesFromDataFrame(seqnames.field = "V1",
+                                                           start.field    = "V2",
+                                                           end.field      = "V3") %>% unique()
+
+ChIPpeakAnno::findOverlapsOfPeaks(ZFP3.highAffinity.sites,
+                                  ChIP.H293.peaks,
+                                  DNase.H293.peaks,
+                                  minoverlap = 0.85) %>%
+ChIPpeakAnno::makeVennDiagram()
+```
+
+## SK-N-SH cells data
+```{r message=FALSE, warning=FALSE}
+ChIP.SKN.peaks <- read.table("ENCFF049VST.bed") %>%
+                   GenomicRanges::makeGRangesFromDataFrame(seqnames.field = "V1",
+                                                           start.field    = "V2",
+                                                           end.field      = "V3") %>% unique()
+
+
+ZFP3.sites <- TFCookbook::matchPEM(PEM = ZFP3.Core.PEM,
+                                   subject = ChIP.SKN.peaks,
+                                   genome  = "hg38",
+                                   out     = "positions",
+                                   E.cutoff= -5)
+
+ZFP3.sites$predicted.Core.Energy     <- ZFP3.sites$predicted.Energy
+ZFP3.sites$predicted.Energy          <- NULL
+ZFP3.sites$predicted.Upstream.Energy <- TFCookbook::predictEnergy(ZFP3.sites$Sequence, ZFP3.Upstream.PEM)
+ZFP3.sites$predicted.Full.Energy     <- ZFP3.sites$predicted.Upstream.Energy + ZFP3.sites$predicted.Core.Energy
+
+ZFP3.highAffinity.sites <- subset(ZFP3.sites, predicted.Upstream.Energy < (-4))
+
+DNase.SKN.peaks <- read.table("DNase-seq signals/ENCFF752OZB.SKN.bed") %>%
+                   GenomicRanges::makeGRangesFromDataFrame(seqnames.field = "V1",
+                                                           start.field    = "V2",
+                                                           end.field      = "V3") %>% unique()
+
+ChIPpeakAnno::findOverlapsOfPeaks(ZFP3.highAffinity.sites,
+                                  ChIP.SKN.peaks,
+                                  DNase.SKN.peaks,
+                                  minoverlap = 0.85) %>%
+ChIPpeakAnno::makeVennDiagram()
+```
