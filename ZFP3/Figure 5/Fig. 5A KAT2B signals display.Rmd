@@ -1,0 +1,183 @@
+---
+title: "Figure 5A KAT2B signals display"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  pdf_document:
+    toc: yes
+author: Zheng Zuo
+date: 04/15/2022
+---
+
+```{r message=FALSE, warning=FALSE}
+require(dplyr)
+require(GenomicRanges)
+
+load("./ZFP3.annotated.sites.RData")
+
+require(EnsDb.Hsapiens.v86) 
+require(ChIPpeakAnno)
+require(GenomicRanges)
+
+ZFP3.peaks.regions = GRanges(seqnames = "chr3",
+                             ranges   = IRanges(start = 20039523,
+                                                end   = 20041522))
+
+ZFP3.peaks.regions
+```
+
+
+
+```{r}
+hg38.genomeAxis.track <- Gviz::GenomeAxisTrack()
+
+require(ensembldb)
+require(EnsDb.Hsapiens.v86)
+edb <- EnsDb.Hsapiens.v86
+seqlevelsStyle(edb) <- "UCSC"
+
+require(Gviz)
+require(ggplotify)
+hg38.geneRegion.track <- Gviz::GeneRegionTrack(ensembldb::getGeneRegionTrackForGviz(edb,
+                                                              chromosome = seqnames(ZFP3.peaks.regions)
+                                                              ),
+                                               name = "Genes Model",
+                                               transcriptAnnotation = "symbol",
+                                               background.title = "brown",
+                                               fill = "#777777")
+
+ZFP3.ChIP.H293.track <- Gviz::DataTrack(range = rtracklayer::import.bw("./ENCFF655DZE.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#E6A024",
+                     groups = factor(1, levels = seq(1,10)),
+                     name = "ZFP3 ChIP-seq signals (HEK293 cells)", ylim = c(0, 8500))
+
+ZFP3.ChIP.SKN.track <- Gviz::DataTrack(range = rtracklayer::import.bw("./ENCFF774MKP.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#5BB4E5",
+                     groups = factor(2, levels = seq(1,10)),
+                     name = "ZFP3 ChIP-seq signal (SK-N-SH cells)", ylim = c(0, 8500))
+
+ZFP3.ChIP.tracks <- Gviz::OverlayTrack(trackList=list(ZFP3.ChIP.H293.track,
+                                                      ZFP3.ChIP.SKN.track
+                                                     ))
+
+
+DNase.H293.track <- Gviz::DataTrack(range = rtracklayer::import.bw("DNase-seq signals/ENCFF529BOG.H293T.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#E6A024",
+                     groups = factor(3, levels = seq(1,10)),
+                     name = "DNase-seq signals (HEK293 cells)", ylim = c(0, 6))
+
+
+DNase.SKN.track <- Gviz::DataTrack(range = rtracklayer::import.bw("DNase-seq signals/ENCFF280RMA.SKN.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#5BB4E5",
+                     groups = factor(4, levels = seq(1,10)),
+                     name = "DNase-seq signals (SK-N-SH cells)", ylim = c(0, 6))
+
+
+DNase.tracks <- Gviz::OverlayTrack(trackList=list(DNase.H293.track,
+                                                  DNase.SKN.track
+                                                     ))
+
+H3K27ac.H293.track <- Gviz::DataTrack(range = rtracklayer::import.bw("Chromatin signals/ENCFF157TGK.HEK293.H3K27ac.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#E6A024",
+                     groups = factor(5, levels = seq(1,10)),
+                     name = "H3K27ac signals (HEK293 cells)", ylim = c(0, 200))
+
+
+H3K27ac.SKN.track <- Gviz::DataTrack(range = rtracklayer::import.bw("Chromatin signals/ENCFF287KJY.SKN.H3K27ac.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#5BB4E5",
+                     groups = factor(6, levels = seq(1,10)),
+                     name = "H3K27ac signals (SK-N-SH cells)", ylim = c(0, 200))
+
+
+H3K27ac.tracks <- Gviz::OverlayTrack(trackList=list(H3K27ac.H293.track,
+                                                    H3K27ac.SKN.track))
+
+H3K4me3.H293.track <- Gviz::DataTrack(range = rtracklayer::import.bw("Chromatin signals/ENCFF315TAU.HEK293.H3K4me3.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#E6A024",
+                     groups = factor(7, levels = seq(1,10)),
+                     name = "H3K4me3 signals (HEK293 cells)", ylim = c(0, 380))
+
+
+H3K4me3.SKN.track <- Gviz::DataTrack(range = rtracklayer::import.bw("Chromatin signals/ENCFF943FNS.SKN.H3K4me3.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#5BB4E5",
+                     groups = factor(8, levels = seq(1,10)),
+                     name = "H3K4me3 signals (SK-N-SH cells)", ylim = c(0, 380))
+
+
+H3K4me3.tracks <- Gviz::OverlayTrack(trackList=list(H3K4me3.H293.track,
+                                                    H3K4me3.SKN.track))
+
+H3K4me1.H293.track <- Gviz::DataTrack(range = rtracklayer::import.bw("Chromatin signals/ENCFF003LZR.HEK293.H3K4me1.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#E6A024",
+                     groups = factor(9, levels = seq(1,10)),
+                     name = "H3K4me1 signals (HEK293 cells)", ylim = c(0, 20))
+
+H3K4me1.SKN.track <- Gviz::DataTrack(range = rtracklayer::import.bw("Chromatin signals/ENCFF056LYG.SKN.H3K4me1.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#5BB4E5",
+                     groups = factor(10, levels = seq(1,10)),
+                     name = "H3K4me3 signals (SK-N-SH cells)", ylim = c(0, 20))
+
+H3K4me1.tracks <- Gviz::OverlayTrack(trackList=list(H3K4me1.H293.track,
+                                                    H3K4me1.SKN.track))
+
+H3K9me3.H293.track <- Gviz::DataTrack(range = rtracklayer::import.bw("Chromatin signals/ENCFF758LNF.HEK293.H3K9me3.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#E6A024",
+                     groups = factor("HEK293", levels = c("HEK293", "SK-N-SH")),
+                     name = "H3K9me3 signals (HEK293 cells)", ylim = c(0, 10))
+
+H3K9me3.SKN.track <- Gviz::DataTrack(range = rtracklayer::import.bw("Chromatin signals/ENCFF655EVA.SKN.H3K9me3.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#5BB4E5",
+                     groups = factor("SK-N-SH", levels = c("HEK293", "SK-N-SH")),
+                     name = "H3K9me3 signals (SK-N-SH cells)", ylim = c(0, 10))
+
+H3K9me3.tracks <- Gviz::OverlayTrack(trackList=list(H3K9me3.H293.track,
+                                                    H3K9me3.SKN.track))
+```
+
+```{r fig.height=3, fig.width=8, message=FALSE, warning=FALSE}
+ZFP3.highlight.sites <- subset(ZFP3.annotated.sites, gene_name == "KAT2B") %>%
+                        subset(predicted.Full.Energy < (-7))
+
+highlightBox <-          Gviz::HighlightTrack(trackList = list(ZFP3.ChIP.tracks),
+                                              start     = start(ZFP3.highlight.sites),
+                                              end       = end(ZFP3.highlight.sites),
+                                              chromosome= seqnames(ZFP3.highlight.sites), col = NA
+                                              
+                                     )
+
+
+as.ggplot(function(){
+  ZFP3.peaks.regions %>%
+  Gviz::plotTracks(trackList = list(hg38.geneRegion.track,
+                                    highlightBox,
+                                    DNase.tracks,
+                                    H3K27ac.tracks,
+                                    H3K4me3.tracks,
+                                    H3K4me1.tracks
+                                   ),
+                                    collapseTranscripts = "longest",
+                                    chromosome = as.character(seqnames(.)),
+                                    from = start(.),
+                                    to =   end(.),
+                                    window = -1,
+                                    windowSize = 10,
+                                    reverseStrand = FALSE, legend = FALSE) 
+}) -> plot.KAT2B
+
+plot.KAT2B
+#ggsave("KAT2B tracks.svg", height = 2.8, width = 8)
+```
+

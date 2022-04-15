@@ -1,0 +1,237 @@
+---
+title: "Figure 4 ChIP-seq signals for various regulatory targets"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  pdf_document:
+    toc: yes
+author: Zheng Zuo
+date: 04/15/2022
+---
+
+
+```{r message=FALSE, warning=FALSE}
+require(dplyr)
+require(GenomicRanges)
+
+#FSD1, STOML3, MARK1, SPC24, WDR19, CERKL, TTC26, CEP162
+load("./ZFP3.annotated.sites.RData")
+Genes.Of.Interest <- c("FSD1", "STOML3", "MARK1", "SPC24", "WDR19", "CERKL", "TTC26",
+                       "CEP162", "MAP1S", "CEP95", "PKN2", "C7orf43", "KAT2B")
+
+require(EnsDb.Hsapiens.v86) 
+require(ChIPpeakAnno)
+require(GenomicRanges)
+ZFP3.peaks.regions <- ChIPpeakAnno::toGRanges(EnsDb.Hsapiens.v86, feature="gene") %>%
+                      base::subset(gene_name %in% Genes.Of.Interest)
+
+
+ZFP3.peaks.regions <- promoters(ZFP3.peaks.regions,
+                                upstream = 500, downstream = 500)
+
+ZFP3.peaks.regions
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+hg38.genomeAxis.track <- Gviz::GenomeAxisTrack()
+
+require(ensembldb)
+require(EnsDb.Hsapiens.v86)
+edb <- EnsDb.Hsapiens.v86
+seqlevelsStyle(edb) <- "UCSC"
+
+require(Gviz)
+require(ggplotify)
+hg38.geneRegion.track <- Gviz::GeneRegionTrack(ensembldb::getGeneRegionTrackForGviz(edb,
+                                                              chromosome = seqnames(ZFP3.peaks.regions)
+                                                              ),
+                                               name = "Genes Model",
+                                               transcriptAnnotation = "symbol",
+                                               background.title = "brown",
+                                               fill = "#777777")
+
+ZFP3.ChIP.SKN.track <- Gviz::DataTrack(range = rtracklayer::import.bw("./ENCFF774MKP.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#5BB4E5",
+                     groups = factor("SK-N-SH", levels = c("HEK293", "SK-N-SH")),
+                     name = "ZFP3 ChIP-seq signal (SK-N-SH cells)", ylim = c(0, 100))
+
+
+ZFP3.ChIP.H293.track <- Gviz::DataTrack(range = rtracklayer::import.bw("./ENCFF655DZE.bigWig",
+                                                                  which = ZFP3.peaks.regions), 
+                     genome = "hg38", type = "l", col = "#E6A024",
+                     groups = factor("HEK293", levels = c("HEK293", "SK-N-SH")),
+                     name = "ZFP3 ChIP-seq signals (HEK293 cells)", ylim = c(0, 100))
+
+ZFP3.ChIP.tracks <- Gviz::OverlayTrack(trackList=list(ZFP3.ChIP.H293.track,
+                                                      ZFP3.ChIP.SKN.track
+                                                     ))
+```
+
+```{r fig.height=0.65, fig.width=4, message=FALSE, warning=FALSE}
+ZFP3.highlight.sites <- subsetByOverlaps(ZFP3.annotated.sites, subset(ZFP3.peaks.regions, gene_name == "STOML3"),
+                                         ignore.strand = TRUE) %>%
+                        subset(predicted.Full.Energy < -7)
+
+
+highlightBox <-          Gviz::HighlightTrack(trackList = list(ZFP3.ChIP.tracks),
+                                              start     = start(ZFP3.highlight.sites),
+                                              end       = end(ZFP3.highlight.sites),
+                                              chromosome= seqnames(ZFP3.highlight.sites), col = NA
+                                              
+                                     )
+
+as.ggplot(function(){
+  ZFP3.peaks.regions %>%
+  subset(gene_name == "STOML3") %>%
+  Gviz::plotTracks(trackList = list(hg38.geneRegion.track,
+                                    highlightBox),
+                                    collapseTranscripts = "longest",
+                                    chromosome = as.character(seqnames(.)),
+                                    from = start(.),
+                                    to =   end(.),
+                                    window = -1,
+                                    windowSize = 4, ylim = c(0, 300),
+                                    reverseStrand = TRUE, legend = FALSE) 
+}) -> plot.STOML3
+
+#ggsave("STOML3 track.svg", height = 1.3, width = 8)
+```
+
+
+```{r fig.height=0.65, fig.width=4, message=FALSE, warning=FALSE}
+ZFP3.highlight.sites <- subsetByOverlaps(ZFP3.annotated.sites, subset(ZFP3.peaks.regions, gene_name == "FSD1"),
+                                         ignore.strand = TRUE) %>%
+                        subset(predicted.Full.Energy < -7)
+
+
+highlightBox <-          Gviz::HighlightTrack(trackList = list(ZFP3.ChIP.tracks),
+                                              start     = start(ZFP3.highlight.sites),
+                                              end       = end(ZFP3.highlight.sites),
+                                              chromosome= seqnames(ZFP3.highlight.sites), col = NA
+                                              
+                                     )
+
+as.ggplot(function(){
+  ZFP3.peaks.regions %>%
+  subset(gene_name == "FSD1") %>%
+  Gviz::plotTracks(trackList = list(hg38.geneRegion.track,
+                                    highlightBox
+                                    ),
+                                    collapseTranscripts = "longest",
+                                    chromosome = as.character(seqnames(.)),
+                                    from = start(.),
+                                    to =   end(.),
+                                    window = -1,
+                                    windowSize = 4, ylim = c(0, 2100),
+                                    reverseStrand = FALSE, legend = FALSE)
+}) -> plot.FSD1
+
+
+#ggsave("FSD1 track.svg", height = 1.6, width = 8)
+```
+
+```{r fig.height=0.65, fig.width=4, message=FALSE, warning=FALSE}
+ZFP3.highlight.sites <- subsetByOverlaps(ZFP3.annotated.sites, subset(ZFP3.peaks.regions, gene_name == "MARK1"),
+                                         ignore.strand = TRUE) %>%
+                        subset(predicted.Full.Energy < -7)
+
+highlightBox <-          Gviz::HighlightTrack(trackList = list(ZFP3.ChIP.tracks),
+                                              start     = start(ZFP3.highlight.sites),
+                                              end       = end(ZFP3.highlight.sites),
+                                              chromosome= seqnames(ZFP3.highlight.sites), col = NA
+                                              
+                                     )
+
+as.ggplot(function(){
+  ZFP3.peaks.regions %>%
+  subset(gene_name == "MARK1") %>%
+  Gviz::plotTracks(trackList = list(hg38.geneRegion.track,
+                                    highlightBox),
+                                    collapseTranscripts = "longest",
+                                    chromosome = as.character(seqnames(.)),
+                                    from = start(.),
+                                    to =   end(.),
+                                    window = -1,
+                                    windowSize = 4, ylim = c(0, 40),
+                                    reverseStrand = FALSE, legend = FALSE)
+  }) -> plot.MARK1
+
+
+#ggsave("MARK1 track.svg", height = 1.6, width = 8)
+```
+
+```{r fig.height=0.65, fig.width=4, message=FALSE, warning=FALSE}
+ZFP3.highlight.sites <- subsetByOverlaps(ZFP3.annotated.sites, subset(ZFP3.peaks.regions, gene_name == "SPC24"),
+                                         ignore.strand = TRUE) %>%
+                        subset(predicted.Full.Energy < -7)
+
+highlightBox <-          Gviz::HighlightTrack(trackList = list(ZFP3.ChIP.tracks),
+                                              start     = start(ZFP3.highlight.sites),
+                                              end       = end(ZFP3.highlight.sites),
+                                              chromosome= seqnames(ZFP3.highlight.sites), col = NA
+                                              
+                                     )
+
+as.ggplot(function(){
+  ZFP3.peaks.regions %>%
+  subset(gene_name == "SPC24") %>%
+  Gviz::plotTracks(trackList = list(hg38.geneRegion.track,
+                                    highlightBox),
+                                    collapseTranscripts = "longest",
+                                    chromosome = as.character(seqnames(.)),
+                                    from = start(.),
+                                    to =   end(.),
+                                    window = -1,
+                                    windowSize = 4, ylim = c(0, 1500),
+                                    reverseStrand = TRUE, legend = FALSE)
+  }) -> plot.SPC24
+
+
+#ggsave("SPC24 track.svg", height = 1.6, width = 8)
+```
+
+
+```{r fig.height=0.8, fig.width=4, message=FALSE, warning=FALSE}
+ZFP3.highlight.sites <- subsetByOverlaps(ZFP3.annotated.sites, subset(ZFP3.peaks.regions, gene_name == "MAP1S"),
+                                         ignore.strand = TRUE) %>%
+                        subset(predicted.Full.Energy < -7)
+
+highlightBox <-          Gviz::HighlightTrack(trackList = list(ZFP3.ChIP.tracks),
+                                              start     = start(ZFP3.highlight.sites),
+                                              end       = end(ZFP3.highlight.sites),
+                                              chromosome= seqnames(ZFP3.highlight.sites), col = NA
+                                              
+                                     )
+
+as.ggplot(function(){
+  ZFP3.peaks.regions %>%
+  subset(gene_name == "MAP1S") %>%
+  Gviz::plotTracks(trackList = list(hg38.geneRegion.track,
+                                    highlightBox),
+                                    collapseTranscripts = "longest",
+                                    chromosome = as.character(seqnames(.)),
+                                    from = start(.),
+                                    to =   end(.),
+                                    window = -1,
+                                    windowSize = 4, ylim = c(0, 2600),
+                                    reverseStrand = FALSE, legend = FALSE)}) -> plot.MAP1S
+
+#ggsave("MAP1S track.svg", height = 1.6, width = 8)
+```
+
+
+```{r fig.height=5, fig.width=8, message=FALSE, warning=FALSE}
+cowplot::plot_grid(plot.MARK1,
+                   plot.SPC24,
+                   plot.STOML3,
+                   plot.FSD1,
+                   plot.MAP1S,
+                   nrow = 6)
+
+#ggsave("Genome tracks.svg", height = 5, width = 8)
+```
+

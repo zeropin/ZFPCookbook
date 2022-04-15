@@ -1,0 +1,54 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  toc: yes
+  html_notebook: null
+---
+
+
+```{r}
+require(dplyr)
+require(ggplot2)
+require(TFCookbook)
+```
+
+
+## Build motif models based on all single variants of reference sequence
+
+```{r fig.height=1.3, fig.width=4.2, warning=FALSE}
+require(dplyr)
+load("ZFP3.RData")
+Sample1.processed %>%
+  dplyr::filter(Mismatch<=1) %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() %>%
+  as.PEM() %>%
+  TFCookbook::plotEnergyLogo() + ggtitle("Motif of ZFP3\nSample #1") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+## Figure S1
+```{r fig.height=4.5, fig.width=5, warning=FALSE}
+Sample1.processed %>%
+  dplyr::filter(Mismatch<=1) %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() -> ZFP3.Sample1.Model
+
+Sample2.processed %>%
+  dplyr::filter(Mismatch<=1) %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() -> ZFP3.Sample2.Model
+
+
+ggplot(mapping = aes(x = ZFP3.Sample1.Model$coefficients[2:55],
+           y = ZFP3.Sample2.Model$coefficients[2:55]))+
+  geom_point() +
+ # ggpubr::stat_regline_equation()+
+  ggpubr::stat_cor() +
+  theme_bw() +
+  xlab("Model parameters derived from Sample 1 data (kT)")+
+  ylab("Model parameters derived from Sample 2 data (kT)")
+
+#ggsave("Models parameters comparison.svg", height = 4.5, width = 5)  
+```

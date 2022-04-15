@@ -1,0 +1,78 @@
+---
+title: "Figure 1 Spec-seq data analysis"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    df_print: paged
+    toc: yes
+author: Zheng Zuo
+date: 04/15/2022
+---
+
+
+```{r message=FALSE, warning=FALSE}
+require(dplyr)
+require(ggplot2)
+require(TFCookbook)
+```
+## Figure 1D
+```{r fig.height=4.5, fig.width=5}
+load("ZFP3.RData")
+inner_join(Sample1.processed, Sample2.processed, by = "Sequence", suffix = c(".Sample1", ".Sample2" )) %>%
+  ggplot(aes(x = `Relative Energy.Sample1`,
+             y = `Relative Energy.Sample2`)) +
+  geom_point()+
+  theme_bw() +
+  ggpubr::stat_regline_equation()+
+  ggpubr::stat_cor(label.y = 1.5)
+```
+
+
+## Figure 1F, Build motif models based on all single variants of reference sequence
+
+```{r fig.height=2.6, fig.width=8.4, warning=FALSE}
+require(dplyr)
+Sample1.processed %>%
+  dplyr::filter(Mismatch<=1) %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() %>%
+  TFCookbook::as.PEM() %>%
+  TFCookbook::plotEnergyLogo() + ggtitle("Motif of ZFP3\nSample #1") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+## Figure 1G
+
+```{r warning=FALSE}
+Sample1.processed %>%
+  dplyr::filter(Mismatch<=1) %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() %>%
+  as.PEM()
+```
+
+
+## Figure S1
+```{r fig.height=4.5, fig.width=5, warning=FALSE}
+Sample1.processed %>%
+  dplyr::filter(Mismatch<=1) %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() -> ZFP3.Sample1.Model
+
+Sample2.processed %>%
+  dplyr::filter(Mismatch<=1) %>%
+  dplyr::rename(Energy=`Relative Energy`) %>%
+  TFCookbook::buildEnergyModel() -> ZFP3.Sample2.Model
+
+
+ggplot(mapping = aes(x = ZFP3.Sample1.Model$coefficients[2:55],
+           y = ZFP3.Sample2.Model$coefficients[2:55]))+
+  geom_point() +
+ # ggpubr::stat_regline_equation()+
+  ggpubr::stat_cor() +
+  theme_bw() +
+  xlab("Model parameters derived from Sample 1 data (kT)")+
+  ylab("Model parameters derived from Sample 2 data (kT)")
+
+#ggsave("Models parameters comparison.svg", height = 4.5, width = 5)  
+```

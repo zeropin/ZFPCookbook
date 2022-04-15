@@ -1,0 +1,183 @@
+---
+title: "Figure 3 Regulatory elements annotations"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    df_print: paged
+    toc: yes
+author: Zheng Zuo
+date: 04/15/2022
+---
+
+## Figure 3A
+
+```{r message=FALSE, warning=FALSE}
+require(dplyr)
+require(GenomicRanges)
+
+ChIP.H293.peaks <- read.table("ENCFF107KSN.bed") %>%
+                   GenomicRanges::makeGRangesFromDataFrame(seqnames.field = "V1",
+                                                           start.field    = "V2",
+                                                           end.field      = "V3",
+                                                           keep.extra.columns = TRUE) %>% unique()
+
+ChIP.SKN.peaks <- read.table("./ENCFF049VST.bed")  %>%
+                  GenomicRanges::makeGRangesFromDataFrame(seqnames.field = "V1",
+                                                           start.field   = "V2",
+                                                           end.field     = "V3",
+                                                          keep.extra.columns = TRUE) %>% unique()
+
+ChIP.overlapping.peaks <- ChIPpeakAnno::findOverlapsOfPeaks(ChIP.H293.peaks,
+                                                            ChIP.SKN.peaks,
+                                                            minoverlap = 0.85,
+                                                            connectedPeaks = "merge")
+
+ChIPpeakAnno::makeVennDiagram(ChIP.overlapping.peaks,
+                              fill=c("#5BB4E5", "#E6A024"))
+```
+
+## Figure 3C
+
+```{r}
+require(GenomicRanges)
+load("ZFP3.motif.RData")
+ZFP3.merged.sites <- TFCookbook::matchPEM(PEM = ZFP3.Core.PEM,
+                                   subject = ChIP.overlapping.peaks$mergedPeaks,
+                                   genome  = "hg38",
+                                   out     = "positions",
+                                   E.cutoff= -5)
+
+ZFP3.unique.sites <- TFCookbook::matchPEM(PEM = ZFP3.Core.PEM,
+                                   subject = ChIP.overlapping.peaks$uniquePeaks,
+                                   genome  = "hg38",
+                                   out     = "positions",
+                                   E.cutoff= -5)
+
+ZFP3.merged.sites$Property = "merged"
+ZFP3.unique.sites$Property = "unique"
+ZFP3.sites = c(ZFP3.merged.sites, ZFP3.unique.sites) %>% unique()
+
+
+ZFP3.sites$predicted.Core.Energy     <- ZFP3.sites$predicted.Energy
+ZFP3.sites$predicted.Energy          <- NULL
+ZFP3.sites$predicted.Upstream.Energy <- TFCookbook::predictEnergy(ZFP3.sites$Sequence, ZFP3.Upstream.PEM)
+ZFP3.sites$predicted.Full.Energy     <- ZFP3.sites$predicted.Upstream.Energy+ZFP3.sites$predicted.Core.Energy
+
+ZFP3.sites
+```
+
+```{r}
+Ciliated.Genes.Tissues <- readr::read_delim("expressionclustertissue_81_Ciliated.tsv",
+                                            delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+
+Ciliated.Genes.Cells   <- readr::read_delim("expressionclustersinglecell_49_Ciliated.tsv",
+                                            delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+
+Ciliated.Genes <- merge(Ciliated.Genes.Tissues, Ciliated.Genes.Cells,  all = TRUE)
+
+MT.related.genes <- c("MARK1","SPC24","MAP1S","FSD1", "CEP295", "ERBB2", "RABGAP1", "MAPT", "KAT2B")
+Cilia.related.genes <- c("CEP95", "STOML3", "WDR19", "WDR38", "TTC26", "CEP162", "CERKL", "PKN2", "C7orf43", "OFD1", "CASC1")
+```
+
+```{r fig.height=5, fig.width=10, message=FALSE, warning=FALSE}
+require(EnsDb.Hsapiens.v86) ##(hg38)
+## create annotation file from EnsDb or TxDb
+require(ChIPpeakAnno)
+annoData             <- ChIPpeakAnno::toGRanges(EnsDb.Hsapiens.v86, feature="gene")
+ZFP3.annotated.sites <- ChIPpeakAnno::annotatePeakInBatch(ZFP3.sites, AnnotationData=TSS.human.GRCh38)
+ZFP3.annotated.sites$gene_name <- annoData$gene_name[match(ZFP3.annotated.sites$feature, names(annoData))]
+
+require(ggplot2)
+ZFP3.annotated.sites %>% as_tibble() %>%
+  dplyr::filter(abs(distancetoFeature) < 500) %>%
+  arrange(predicted.Full.Energy) %>%
+  mutate(Category = case_when(gene_name %in% MT.related.genes ~ "Microtubules organization",
+                              gene_name %in% c(Ciliated.Genes$Gene, Cilia.related.genes) ~ "Ciliogenesis related",
+                              TRUE ~ "Others")) %>%
+ # arrange(predicted.Full.Energy)
+  mutate(Label = if_else(Category!="Others" & (predicted.Full.Energy<(-10)), gene_name, NULL)) %>%
+  ggplot(aes(x = predicted.Core.Energy,
+             y = predicted.Upstream.Energy,
+             fill = Category,
+             shape = Property,
+             color = Category,
+             label = Label))+
+  geom_point() +
+  ggrepel::geom_label_repel(aes(fill = Category), fontface = "bold", color = "white") +
+  xlab("Predicted Core energy by Core PEM (kT)") +
+  ylab("Predicted Upstream energy by Upstream PEM (kT)") +
+  theme_bw() + scale_fill_manual(values = c("#56B4E9", "#E69F00", "#000000"))+
+  scale_color_manual(values = c("#56B4E9", "#E69F00", "#000000"))+
+  scale_x_continuous(limits = c(-8, -5), expand = c(0,0)) +
+  scale_y_continuous(breaks = c(4, 0, -4, -8), limits = c(-8.5, 0), expand = c(0,0))
+#ggsave("Regulatory elements annotations.svg", width = 10, height = 5)
+```
+
+```{r include = FALSE, eval = FALSE}
+library(phastCons30way.UCSC.hg38)
+
+
+phast <- getGScores("phastCons30way.UCSC.hg38")
+availableGScores()
+
+load("ZFP3.annotated.sites.RData")
+
+ZFP3.annotated.sites <- makeGRangesFromDataFrame(ZFP3.annotated.sites, keep.extra.columns = TRUE)
+GenomicScores::gscores(phast, ZFP3.annotated.sites) -> ZFP3.annotated.sites
+
+require(dplyr)
+require(ggplot2)
+ZFP3.annotated.sites %>% as_tibble() %>%
+  dplyr::filter(phastCons30way.score>0.7,
+                abs(distancetoFeature)<1500) %>%
+  arrange(predicted.Full.Energy*phastCons30way.score) %>%
+  ggplot(aes(x = predicted.Core.Energy,
+             y = predicted.Upstream.Energy,
+             color = Category,
+             size = phastCons30way.score)) +
+  geom_point()
+  
+  
+
+ZFP3.annotated.sites %>% as_tibble() %>%
+  mutate(Category = case_when(gene_name %in% MT.related.genes ~ "Microtubules organization",
+                              gene_name %in% c(Ciliated.Genes$Gene, Cilia.related.genes) ~ "Ciliogenesis related",
+                              TRUE ~ "Others")) %>%
+  arrange(Category) -> ZFP3.annotated.sites
+
+
+```
+
+## Figure 3D
+
+```{r fig.height=3.6, fig.width=10.5, message=FALSE, warning=FALSE}
+#require(extrafont)
+#extrafont::loadfonts(device = "win")
+
+  readr::read_delim("rna_single_cell_type.tsv",
+                  delim = "\t", escape_double = FALSE, trim_ws = TRUE) %>%
+  dplyr::filter(`Gene name` == "ZFP3") %>%
+  mutate(`Cell type` = forcats::fct_reorder(`Cell type`, nTPM, .desc = TRUE),
+         Category    = case_when(`Cell type` %in% c("Respiratory ciliated cells",
+                                                    "Spermatocytes",
+                                                    "Endometrial ciliated cells",
+                                                 "Cone photoreceptor cells", "Rod photoreceptor cells"
+                                                 ) ~ "Ciliated cells",
+                               TRUE ~ "Others")) %>%
+  arrange(desc(nTPM)) %>%
+  ggplot(aes(`Cell type`, nTPM, fill = Category))+
+  geom_col() + theme_bw()+
+  scale_fill_manual(values = c("#5BB4E5", "#777777")) +
+  #theme(axis.text.x = element_text(angle = 60, family = "TT Arial",  size = 4.5, hjust = 1),
+  theme(axis.text.x = element_text(angle = 60, size = 4.5, hjust = 1),
+        panel.grid.major.x = element_blank()) +
+  scale_y_continuous(minor_breaks = NULL)
+
+
+#ggsave("Gene expressions of ZFP3.svg", width = 7, height = 2.4)
+```
+
+```{r}
+#save.image("ZFP3.annotated.sites.RData")
+```
