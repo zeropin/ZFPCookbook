@@ -76,7 +76,7 @@ Ciliated.Genes.Cells   <- readr::read_delim("expressionclustersinglecell_49_Cili
 
 Ciliated.Genes <- merge(Ciliated.Genes.Tissues, Ciliated.Genes.Cells,  all = TRUE)
 
-MT.related.genes <- c("MARK1","SPC24","MAP1S","FSD1", "CEP295", "ERBB2", "RABGAP1", "MAPT", "KAT2B")
+MT.related.genes <- c("MARK1","SPC24","MAP1S","FSD1", "CEP295", "ERBB2", "RABGAP1", "MAPT", "KAT2B", "MOB3C", "SPG11")
 Cilia.related.genes <- c("CEP95", "STOML3", "WDR19", "WDR38", "TTC26", "CEP162", "CERKL", "PKN2", "C7orf43", "OFD1", "CASC1")
 ```
 
@@ -85,7 +85,7 @@ require(EnsDb.Hsapiens.v86) ##(hg38)
 ## create annotation file from EnsDb or TxDb
 require(ChIPpeakAnno)
 annoData             <- ChIPpeakAnno::toGRanges(EnsDb.Hsapiens.v86, feature="gene")
-ZFP3.annotated.sites <- ChIPpeakAnno::annotatePeakInBatch(ZFP3.sites, AnnotationData=TSS.human.GRCh38)
+ZFP3.annotated.sites <- ChIPpeakAnno::annotatePeakInBatch(ZFP3.sites, AnnotationData=annoData)
 ZFP3.annotated.sites$gene_name <- annoData$gene_name[match(ZFP3.annotated.sites$feature, names(annoData))]
 
 require(ggplot2)
@@ -111,6 +111,7 @@ ZFP3.annotated.sites %>% as_tibble() %>%
   scale_color_manual(values = c("#56B4E9", "#E69F00", "#000000"))+
   scale_x_continuous(limits = c(-8, -5), expand = c(0,0)) +
   scale_y_continuous(breaks = c(4, 0, -4, -8), limits = c(-8.5, 0), expand = c(0,0))
+
 #ggsave("Regulatory elements annotations.svg", width = 10, height = 5)
 ```
 
@@ -178,6 +179,19 @@ ZFP3.annotated.sites %>% as_tibble() %>%
 #ggsave("Gene expressions of ZFP3.svg", width = 7, height = 2.4)
 ```
 
-```{r}
-#save.image("ZFP3.annotated.sites.RData")
+```{r eval=FALSE}
+ZFP3.annotated.sites %>% as_tibble() %>%
+  mutate(Category = case_when(gene_name %in% MT.related.genes ~ "Microtubules organization",
+                              gene_name %in% c(Ciliated.Genes$Gene, Cilia.related.genes) ~ "Ciliogenesis related",
+                              TRUE ~ "Others")) %>%
+  arrange(Category) %>%
+  makeGRangesFromDataFrame(keep.extra.columns = TRUE) -> ZFP3.annotated.sites
+
+ZFP3.annotated.sites %>% subset(predicted.Core.Energy < (-5) &
+                                predicted.Upstream.Energy < (-4) &
+                                abs(distancetoFeature) <= 500) %>% as_tibble()
+
+
+save(list = c("ZFP3.annotated.sites"), file =  "ZFP3.annotated.sites.RData")
+write.csv(ZFP3.annotated.sites, file = "ZFP3.annotated.sites.csv")
 ```
