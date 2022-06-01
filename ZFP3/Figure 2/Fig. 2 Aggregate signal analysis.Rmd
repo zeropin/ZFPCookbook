@@ -75,7 +75,6 @@ Random.sites <- ChIP.H293.peaks %>%
 ZFP3.sites <- TFCookbook::matchPEM(PEM = ZFP3.Core.PEM,
                                    subject = ChIP.H293.peaks,
                                    genome  = "hg38",
-                                   out     = "positions",
                                    E.cutoff= 0)
 
 ZFP3.sites$predicted.Core.Energy     <- ZFP3.sites$predicted.Energy

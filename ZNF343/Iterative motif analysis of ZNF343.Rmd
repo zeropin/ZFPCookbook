@@ -98,6 +98,8 @@ ZNF343_exo_reads <- readr::read_table2("../ZNF343.bed",
   dplyr::arrange(chrome, strand, edge) %>%
   group_by(chrome)
 
+ZNF343_exo_reads <- genomation::readBed("../ZNF343.bed")
+
 # Spliting ChIP-exo reads to separate data tables based on chromosome to speed up computation process
 ZNF343_exo_reads_by_chrome <- ZNF343_exo_reads %>%
   group_split()

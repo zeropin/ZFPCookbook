@@ -1,0 +1,219 @@
+---
+title: "Correlation analysis of ZIM3's flanking motifs"
+author: Zheng Zuo
+date: "Jun 1, 2022"
+output:
+  html_document:
+    df_print: paged
+    theme: lumen
+    highlight: pygments
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+## Introduction
+This Notebook is used to show that it is not only feasible, but also necessary to use such an fixed-core analysis method to extract the full specificity of long, tandem zinc finger proteins (ZFPs). Briefly, I generated the extended motif profiles based on different 8-mer anchor sites, including the AACAGAAA consensus and all its 24 single variants. Using correlation analysis and hiechical clustering, it is clear that no more than eight cores can serve as "good" anchors to produce longer specificity profiles cross-validated by footprinting profiles, which also lends evidence to our proposed "dependent recognition", or "Anchor" model about the recognition of tandem zinc finger proteins. This analysis workflow could be generalized to analyze other long ZFPs also.
+
+![](Figure 5 (ZIM3).png)
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(GenomicRanges)
+library(BSgenome.Hsapiens.UCSC.hg38)
+library(TFCookbook)
+```
+
+### Parameters and functions used in this analysis workflow
+```{r message=FALSE, warning=FALSE}
+border_width <- 40
+upstream_flank <- 7
+downstream_flank <- 18
+
+ZIM3.peaks <- genomation::readBed("ChIP-exo data/MACS/ZIM3_peaks.narrowPeak")
+load("ZIM3.exo.reads.RData") # Load processed ChIP-exo data of ZIM3, including exo reads and peaks positions in hg38 genome.
+```
+
+
+
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+# Sorting and counting ChIP-exo reads based on chromosome and its first base position(defined as edge)
+
+ZIM3_exo_reads <- genomation::readBed("ChIP-exo data/ZIM3.bed") %>%
+                    as_tibble() %>%
+                    dplyr::mutate(edge=ifelse(strand=="+",start,end)) %>%
+                    dplyr::count(seqnames, strand, edge) %>%
+                    dplyr::arrange(seqnames, strand, edge) %>%
+                    group_by(seqnames, strand)
+
+# Spliting ChIP-exo reads to separate data tables based on chromosome to speed up computation process
+ZIM3_exo_reads_split <- ZIM3_exo_reads %>% group_split()
+
+ZIM3_exo_reads_by_chrome_strand <- matrix(data=ZIM3_exo_reads_split, nrow = 188, ncol = 2, byrow=TRUE)
+rownames(ZIM3_exo_reads_by_chrome_strand) = group_keys(ZIM3_exo_reads)[[1]][seq(1,376,2)]
+colnames(ZIM3_exo_reads_by_chrome_strand) = c("+", "-")
+
+#save(list = "ZIM3_exo_reads_by_chrome_strand", file = "ZIM3.exo.reads.RData")
+
+load("ZIM3.exo.reads.RData")
+rm(ZIM3_exo_reads)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+countExo <- function(chrom, start, end, direction, exoReads = ZIM3_exo_reads_by_chrome_strand) {
+  if (direction == "+") {
+    upstream_count <- exoReads[chrom, "+"][[1]] %>%
+      filter(between(edge, start - border_width, end)) %>%
+      tally(wt = n)
+
+    downstream_count <- exoReads[chrom, "-"][[1]] %>%
+      filter(between(edge, start, end + border_width)) %>%
+      tally(wt = n)
+  }
+  else if (direction == "-") {
+    upstream_count <- exoReads[chrom, "-"][[1]] %>%
+      filter(between(edge, start, end + border_width)) %>%
+      tally(wt = n)
+
+    downstream_count <- exoReads[chrom, "+"][[1]] %>%
+      filter(between(edge, start - border_width, end)) %>%
+      tally(wt = n)
+  }
+
+  return((upstream_count + downstream_count)[[1]])
+}
+
+anchorModel <- function(anchor) {
+  # Finding all anchor sites within ZIM3 ChIP-exo peaks
+  Sites <- TFCookbook::matchSite(site = anchor,
+                                      subject = ZIM3.peaks,
+                                      genome = "hg38")%>%
+           subset(seqnames %in% rownames(ZIM3_exo_reads_by_chrome_strand)) %>%
+           as_tibble() %>%
+   # select(seqnames, start, end, strand) %>%
+           mutate(exo_count = mapply(countExo,
+                                    as.character(seqnames), start, end, strand))
+
+  # Extending the anchor position by fixed upstream and downstream distances
+  Sites %<>%
+    filter(exo_count > 0) %>%
+    mutate(
+      start = if_else(strand == "+",
+        start - upstream_flank, start - downstream_flank
+      ),
+      end = if_else(strand == "+",
+        end + downstream_flank, end + upstream_flank
+      ),
+      Energy = -log(exo_count)
+    )
+
+  # Extracting full sequences surrounding the anchor sites
+  Sites$Sequence <- BSgenome::getSeq(Hsapiens,
+    names = Sites$seqnames,
+    start = Sites$start,
+    end   = Sites$end,
+    strand= Sites$strand,
+    as.character=TRUE
+  )
+
+  return(TFCookbook::buildEnergyModel(Sites))
+}
+
+
+addAnchorMatrix <- function(energyMatrix, anchor, position, height){
+  energyMatrix[,position:(position+nchar(anchor)-1)] <- -height*TFCookbook::anchorMatrix(anchor)
+  return(energyMatrix)
+}
+
+```
+
+
+## Inferring flanking motifs based on prefixed intact core
+```{r eval = FALSE}
+Model.AACAGAAA = anchorModel("AACAGAAA")
+
+#save(list = "Model.AACAGAAA", file = "ZIM3.Model.AACAGAAA.RData")
+Model.AACAGAAA %>% as.PEM() %>%
+  TFCookbook::addAnchorMatrix(anchor = "AACAGAAA", position = 8, height = .15) %>%
+  TFCookbook::plotEnergyLogo() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x  = element_blank()) -> plot.AACAGAAA
+
+#ggsave(plot = plot.AACAGAAA, filename = "PEM.AACAGAAA.svg", width = 5.06, height = 1)
+
+```
+![](./PEM.AACAGAAA.svg)
+
+## Inferring flanking motifs based on different anchor sites
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+require(furrr)  # Do multi-core parallel computing
+plan(multiprocess)
+
+singleVariants <- tibble(Sequence = TFCookbook::kmer(8)) %>%
+  mutate(Mismatch = TFCookbook::countMismatch(Sequence, "AACAGAAA")) %>%
+  filter(Mismatch <= 1) %>%# Enumerating all single variants of GAAGCG anchor sites
+  mutate(Model = purrr::map(Sequence, anchorModel)) %>% # Extracting extended specificity info based on each anchor site
+  mutate(Anchors.count = purrr::map_int(Model, function(model) length(model$residuals)),
+         PEM           = purrr::map(Model, as.PEM))# Counting the number of anchors found within ChIP-exo peaks
+```
+
+
+```{r echo=FALSE}
+#save(list = "singleVariants", file = "ZIM3.Models.RData")
+load("ZIM3.Models.RData")
+
+singleVariants %>%
+  arrange(desc(Anchors.count))
+```
+
+## Correlation analysis of flanking motifs of all single variants
+
+### Building Heatmap and Hiechical clustering based on the correlation coefficients between pairs of extended motifs
+```{r fig.height=5.5, fig.width=5, message=FALSE, warning=FALSE}
+Heatmap_data <- sapply(singleVariants$Model, function(x) x$coefficients[c(2:22,47:91)]) %>%
+#Heatmap_data <- sapply(singleVariants$Model, function(x) x$coefficients[c(62:91)]) %>%
+  na.omit() %>%
+  as.data.frame()
+
+colnames(Heatmap_data) <- singleVariants$Sequence
+
+Heatmap.matrix = 1-cor(Heatmap_data)
+
+Heatmap <- pheatmap::pheatmap(Heatmap.matrix, fontfamliy = "mono")
+
+#ggsave("Heatmap_ZIM3.svg", plot=Heatmap, height = 5, width = 4.8)
+```
+
+
+## Ploting extended motif for each anchor site based on the ChIP-exo reads in flanking regions
+
+```{r fig.height=10, fig.width=4}
+logos <- purrr::map2(
+  singleVariants$Sequence,
+  singleVariants$PEM,
+  function(anchor, PEM) {
+    -(PEM %>%
+      TFCookbook::addAnchorMatrix(anchor = anchor, position = 8, height = max(abs(PEM), na.rm = TRUE)))
+  }
+)[Heatmap$tree_row$order]
+
+
+(ggplot() +
+  ggseqlogo::geom_logo(logos, method="custom", seq_type = "dna",
+                       col_scheme = ggseqlogo::make_col_scheme(chars=c('A', 'C', 'G', 'T'),
+                                            cols=c("#0E927B", "#59A9D8", "#DC9514", "#1A1A1A"))
+  )  + 
+  ggseqlogo::theme_logo() +
+ # scale_x_continuous(breaks = seq(1,17,2), label = seq(1,17,2)) +
+  theme(axis.text.x = element_blank(),
+        axis.title.x= element_blank()) +
+  facet_wrap(~seq_group, ncol=1, scales='free_y', strip.position = "right") -> logos
+)
+
+
+#singleVariants$Sequence[Heatmap$tree_row$order]
+#ggsave("ZIM3_logos.svg", plot=logos, width=2.5, height=5, units="in")
+```
