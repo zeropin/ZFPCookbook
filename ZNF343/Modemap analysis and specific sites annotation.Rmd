@@ -1,0 +1,376 @@
+---
+title: "Modemap analysis and specific sites annotations of ZNF343"
+author: Zheng Zuo
+date: "Jun 1, 2022"
+output:
+  html_document:
+    df_print: paged
+    theme: lumen
+    highlight: pygments
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+
+![](images/Figure 5 (ZNF343).png)
+
+```{r fig.height=1.3, fig.width=6, message=FALSE, warning=FALSE}
+require(dplyr)
+require(GenomicRanges)
+require(TFCookbook)
+require(ggplot2)
+
+anchor = "GAAGCG"
+upstream_flank  = 30
+downstream_flank= 1
+border_width = 30
+
+
+ZNF343.peaks <- genomation::readBed("data/ZNF343_peaks.bed")
+
+Exo.plus = "../ChIP-exo Reprocessing(hg19)/ZNF343.plus.bigwig"
+Exo.minus= "../ChIP-exo Reprocessing(hg19)/ZNF343.minus.bigwig"
+
+load("data/ZNF343_models.GAAGCG.RData")
+PEM.GAAGCG <- as.PEM(ZNF343.Model.GAAGCG)
+              
+PEM.GAAGCG %>% 
+  TFCookbook::addAnchorMatrix(anchor = "GAAGCG", position = 31) %>%
+  TFCookbook::plotEnergyLogo()
+```
+
+## Plotting aggregate ChIP-exo footprints with fixed core
+
+```{r}
+makeFootprints <- function(sites){
+  colNum  = nchar(anchor)+2*border_width
+  windows = promoters(sites, upstream = border_width,downstream =nchar(anchor)+border_width)
+  
+  if(!isEmpty(import.bw(Exo.plus, which = windows))){
+      Reads.plus <- genomation::ScoreMatrix(target = Exo.plus, strand.aware = TRUE, unique = FALSE,
+                                            windows= windows)@.Data %>% matrix(ncol = colNum)}
+  else
+      Reads.plus <- matrix(0L, nrow = length(sites), ncol = colNum)
+      
+  
+  if(!isEmpty(import.bw(Exo.minus, which = windows))){
+      Reads.minus<- genomation::ScoreMatrix(target = Exo.minus, strand.aware = TRUE, unique=FALSE,
+                              windows= windows)@.Data %>% matrix(ncol = colNum)}
+  else
+      Reads.minus<- matrix(0L, nrow = length(sites), ncol = nchar(anchor)+2*border_width)
+  
+  return(tibble(position=-(border_width+floor(nchar(anchor)/2)):(ceiling(nchar(anchor)/2)+border_width-1),
+                Reads.Forward= .colSums(Reads.plus[which(sites@strand=="+"),],
+                                        m = length(which(sites@strand=="+")),
+                                        n = colNum)+
+                                .colSums(Reads.minus[which(sites@strand=="-"),],
+                                        m = length(which(sites@strand=="-")),
+                                        n = colNum),
+                Reads.Reverse= .colSums(Reads.plus[which(sites@strand=="-"),],
+                                        m = length(which(sites@strand=="-")),
+                                        n = colNum)+
+                               .colSums(Reads.minus[which(sites@strand=="+"),],
+                                        m = length(which(sites@strand =="+")),
+                                        n = colNum)
+                      ))
+}
+```
+
+
+```{r fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
+plotFootprints <- function(anchor, PEM = PEM.GAAGCG, save = TRUE){
+  Sites = TFCookbook::matchSite(site = anchor,
+                                subject=ZNF343.peaks,
+                                genome="hg19")
+
+  Sites$Sequence = getSeq(x = BSgenome.Hsapiens.UCSC.hg19,
+                          names = promoters(Sites,
+                                            upstream = upstream_flank, downstream = nchar(anchor)+downstream_flank),
+                          as.character = TRUE)
+
+  Sites$predicted.Energy = TFCookbook::predictEnergy(Sites$Sequence, PEM)
+
+  Sites %>%
+  subset(predicted.Energy < (-0.6)) %>%
+  makeFootprints() %>%
+  ggplot()+
+    geom_bar(aes(x=position, weight=Reads.Forward), fill="#5B9Bd5") +
+    geom_bar(aes(x=position, weight=-Reads.Reverse), fill="#FFC000") +
+    #  xlim(-39,31) + ylim(-550, 450) +
+    xlab("Relative position (bp)") +
+    scale_x_continuous(expand = c(0,0))+
+    theme_bw() + theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+                       axis.text.x  = element_blank(),
+                       panel.grid.minor.y = element_blank()) -> plot.Zone1
+  Sites %>%
+  subset(between(predicted.Energy, -0.6, -0.15)) %>%
+  makeFootprints() %>%
+  ggplot()+
+    geom_bar(aes(x=position, weight=Reads.Forward), fill="#5B9Bd5") +
+    geom_bar(aes(x=position, weight=-Reads.Reverse), fill="#FFC000") +
+#  xlim(-39,31) + ylim(-550, 450) +
+    xlab("Relative position (bp)") +
+    scale_x_continuous(expand = c(0,0))+
+    theme_bw() + theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+                       axis.text.x  = element_blank(),
+                       panel.grid.minor.y = element_blank()) -> plot.Zone2
+
+  Sites %>%
+  subset(between(predicted.Energy, -0.15, 0.3)) %>%
+  makeFootprints() %>%
+  ggplot()+
+    geom_bar(aes(x=position, weight=Reads.Forward), fill="#5B9Bd5") +
+    geom_bar(aes(x=position, weight=-Reads.Reverse), fill="#FFC000") +
+#  xlim(-39,31) + ylim(-550, 450) +
+    xlab("Relative position (bp)") +
+    scale_x_continuous(expand = c(0,0))+
+    theme_bw() + theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+                       axis.text.x  = element_blank(),
+                       panel.grid.minor.y = element_blank()) -> plot.Zone3
+
+  Sites %>%
+  subset(predicted.Energy > 0.3) %>%
+  makeFootprints() %>%
+  ggplot()+
+    geom_bar(aes(x=position, weight=Reads.Forward), fill="#5B9Bd5") +
+    geom_bar(aes(x=position, weight=-Reads.Reverse), fill="#FFC000") +
+#  xlim(-39,31) + ylim(-550, 450) +
+    xlab("Relative position (bp)") +
+    scale_x_continuous(expand = c(0,0))+
+    theme_bw() + theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+                       axis.text.x  = element_blank(),
+                       panel.grid.minor.y = element_blank()) -> plot.Zone4
+
+  cowplot::plot_grid(plot.Zone4,
+                     plot.Zone3,
+                     plot.Zone2,
+                     plot.Zone1,
+                     align = "v",
+                     nrow = 4) -> plot.Footprints
+  
+  Sites %>% as_tibble() %>%
+    ggplot(aes(x = predicted.Energy, y = ..count..), size = .2, alpha = 0.1)+
+      geom_histogram(bins = 70) +
+      theme_bw() + theme(axis.title.x = element_blank(),
+                         panel.grid.minor = element_blank()) +
+      xlab("Predicted energy by inferred flanking motif (kT)")+
+      scale_x_continuous(breaks = c(-0.6, -0.15, 0.3 ), limits = c(-1.5, 0.75), expand = c(0,0)) +
+      scale_y_reverse(expand = expansion(mult = c(0.05, 0)))+
+      coord_flip() -> plot.Distribution
+  #facet_wrap(~Group, ncol=1, strip.position = "right", scales = "free_y") -> plot.Distribution
+
+  cowplot::plot_grid(plot.Distribution,
+                     plot.Footprints,
+                     ncol = 2, align = "h", rel_widths = c(1, 2.5)) -> plot.combined
+  
+  if(save==TRUE)
+    ggsave(plot = plot.combined,
+           filename = paste0("Footprints plots/Footprinting with anchor (",anchor,").svg"), height = 3.5, width = 5)
+  else
+    plot.combined
+}
+
+
+plotFootprints("GAAGCG", save = FALSE)
+```
+
+## Plotting footprinting patterns with grouped anchors
+```{r}
+plotFootprintsWithMultipleAnchor <- function(anchors, PEM = PEM.GAAGCG, save){
+  Sites <- lapply(anchors, function(anchor) matchSite(anchor, subject = ZNF343.peaks, genome = "hg19")) %>%
+           do.call("c",.) %>% unique()
+  
+  Sites$Sequence = getSeq(x = BSgenome.Hsapiens.UCSC.hg19,
+                          names = promoters(Sites,
+                                            upstream = upstream_flank, downstream = nchar(anchor)+downstream_flank),
+                          as.character = TRUE)
+  
+  Sites$predicted.Energy = TFCookbook::predictEnergy(Sites$Sequence, PEM)
+
+  Sites %>%
+  subset(predicted.Energy < (-0.6)) %>%
+  makeFootprints() %>%
+  ggplot()+
+    geom_bar(aes(x=position, weight=Reads.Forward), fill="#5B9Bd5") +
+    geom_bar(aes(x=position, weight=-Reads.Reverse), fill="#FFC000") +
+    #  xlim(-39,31) + ylim(-550, 450) +
+    xlab("Relative position (bp)") +
+    scale_x_continuous(expand = c(0,0))+
+    theme_bw() + theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+                       axis.text.x  = element_blank(),
+                       panel.grid.minor.y = element_blank()) -> plot.Zone1
+
+  Sites %>%
+  subset(between(predicted.Energy, -0.6, -0.15)) %>%
+  makeFootprints() %>%
+  ggplot()+
+    geom_bar(aes(x=position, weight=Reads.Forward), fill="#5B9Bd5") +
+    geom_bar(aes(x=position, weight=-Reads.Reverse), fill="#FFC000") +
+#  xlim(-39,31) + ylim(-550, 450) +
+    xlab("Relative position (bp)") +
+    scale_x_continuous(expand = c(0,0))+
+    theme_bw() + theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+                       axis.text.x  = element_blank(),
+                       panel.grid.minor.y = element_blank()) -> plot.Zone2
+
+  Sites %>%
+  subset(between(predicted.Energy, -0.15, 0.3)) %>%
+  makeFootprints() %>%
+  ggplot()+
+    geom_bar(aes(x=position, weight=Reads.Forward), fill="#5B9Bd5") +
+    geom_bar(aes(x=position, weight=-Reads.Reverse), fill="#FFC000") +
+#  xlim(-39,31) + ylim(-550, 450) +
+    xlab("Relative position (bp)") +
+    scale_x_continuous(expand = c(0,0))+
+    theme_bw() + theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+                       axis.text.x  = element_blank(),
+                       panel.grid.minor.y = element_blank()) -> plot.Zone3
+
+  Sites %>%
+  subset(predicted.Energy > 0.3) %>%
+  makeFootprints() %>%
+  ggplot()+
+    geom_bar(aes(x=position, weight=Reads.Forward), fill="#5B9Bd5") +
+    geom_bar(aes(x=position, weight=-Reads.Reverse), fill="#FFC000") +
+#  xlim(-39,31) + ylim(-550, 450) +
+    xlab("Relative position (bp)") +
+    scale_x_continuous(expand = c(0,0))+
+    theme_bw() + theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+                       axis.text.x  = element_blank(),
+                       panel.grid.minor.y = element_blank()) -> plot.Zone4
+
+  cowplot::plot_grid(plot.Zone4,
+                     plot.Zone3,
+                     plot.Zone2,
+                     plot.Zone1,
+                     align = "v",
+                     nrow = 4) -> plot.Footprints
+  
+  Sites %>% as_tibble() %>%
+    ggplot(aes(x = predicted.Energy, y = ..count..), size = .2, alpha = 0.1)+
+      geom_histogram(bins = 70) +
+      theme_bw() + theme(axis.title.x = element_blank(),
+                         panel.grid.minor = element_blank()) +
+      xlab("Predicted energy by inferred flanking motif (kT)")+
+      scale_x_continuous(breaks = c(-0.6, -0.15, 0.3 ), limits = c(-1.05, 0.75), expand = c(0,0)) +
+      scale_y_reverse(expand = expansion(mult = c(0.05, 0)))+
+      coord_flip() -> plot.Distribution
+  #facet_wrap(~Group, ncol=1, strip.position = "right", scales = "free_y") -> plot.Distribution
+
+  cowplot::plot_grid(plot.Distribution,
+                     plot.Footprints,
+                     ncol = 2, align = "h", rel_widths = c(1, 2)) -> plot.combined
+  if(missing(save))
+    plot.combined
+  else
+    ggsave(plot = plot.combined,
+           filename = paste0("Footprints plots/Footprinting with ",save," anchors.svg"), height = 3.5, width = 4)
+}
+
+```
+
+```{r warning = FALSE}
+singleVariants = tibble(Sequence = kmer(6)) %>%
+                # dplyr::filter((Sequence != "AACAGAAA")) %>%
+                 TFCookbook::selectVariants(reference = "GAAGCG", maxMismatches = 1)
+
+Good.Cores = c("GAAGCG", "GAAGCT", "GAAGCA", "GAAGCC")
+Bad.Cores = singleVariants$Sequence[!singleVariants$Sequence %in% Good.Cores]
+```
+
+```{r eval=FALSE}
+plotFootprintsWithMultipleAnchor(anchors = Good.Cores, save = "Good")
+plotFootprintsWithMultipleAnchor(anchors = Bad.Cores, save = "Bad")
+```
+
+## Identifying specific binding sites through selection of good cores and flanking sites simutaneously
+
+```{r message=FALSE, warning=FALSE}
+regular.Seqnames = paste0("chr", c(1:23,"X","Y"))
+
+Good.Sites <- lapply(Good.Cores, function(anchor) matchSite(anchor, subject = ZNF343.peaks, genome = "hg19")) %>%
+         do.call("c",.) %>% unique() %>%
+         subset(seqnames %in% regular.Seqnames)
+
+Good.Sites$Sequence = getSeq(x = BSgenome.Hsapiens.UCSC.hg19,
+                          names = promoters(Good.Sites,
+                                            upstream = upstream_flank, downstream = nchar(anchor)+downstream_flank),
+                          as.character = TRUE)
+
+
+Good.Sites$predicted.Energy = TFCookbook::predictEnergy(Good.Sites$Sequence, PEM.GAAGCG)
+
+
+Specific.Sites = subset(Good.Sites, predicted.Energy < (-0.15))
+Specific.Sites
+
+#save(list = "Specific.Sites", file = "data/ZNF343.specific.sites.RData")
+```
+
+
+## Annotating specific binding sites with association of repeat elements
+```{r}
+require(TECookbook)
+
+data("Repeats.hg19")
+load("data/ZNF343.specific.sites.RData")
+Specific.Sites
+Specific.Sites = TECookbook::annotateSitesInRepeat(Specific.Sites, Repeats.hg19, output = "all")
+
+
+Specific.Sites %>% as_tibble() %>%
+  mutate(Class = factor(case_when(Repeat_Class %in% c("LINE", "SINE", "LTR") ~as.character(Repeat_Class),
+                           is.na(Repeat_Class) ~ "Non-Repeats",
+                           TRUE ~ "Other Repeats"),
+                        levels = c("Non-Repeats", "LINE", "LTR", "SINE", "Other Repeats"))) %>%
+ # dplyr::filter(Repeat_Class == "LINE") %>%
+  group_by(Class) %>%
+  summarise(N = n()) %>%
+  arrange(desc(N)) %>%
+  mutate(value = N,
+         csum = rev(cumsum(rev(value))), 
+         pos = value/2 + lead(value, 1),
+         pos = if_else(is.na(pos), value/2, pos)) %>%
+  ggplot(aes(x = "", y = N)) +
+  geom_col(aes(fill=Class)) +
+  #ggthemes::scale_fill_colorblind() +
+  scale_fill_manual(values = c("#E7E6E6", "#E69F00", "#56B4E9", "#009E73", "#F0E442")) +
+  coord_polar(theta = "y")+
+  ggrepel::geom_label_repel(aes(y = value, label = paste0(Class, "\n N=",N), fill = Class), size = 4.5, nudge_x = 1, show.legend = FALSE)+
+  guides(fill = guide_legend(title = "Class")) +
+  theme_void()
+
+#ggsave("Repeats distribution by Class.svg", width = 4, height = 4)
+```
+
+
+
+```{r}
+Specific.Sites %>% as_tibble() %>%
+  mutate(Name = paste0(Repeat_Family, "|", Repeat_Name),
+         Class = factor(case_when(Repeat_Class %in% c("LINE", "SINE", "LTR") ~as.character(Repeat_Class),
+                           is.na(Repeat_Class) ~ "Non-Repeats",
+                           TRUE ~ "Other Repeats"),
+                        levels = c("LINE", "LTR", "SINE", "Other Repeats", "Non-Repeats")))  %>%
+  group_by(Class, Name) %>%
+  summarise(N = n()) %>%
+  dplyr::filter(Class != "Non-Repeats") %>%
+  arrange(Class, desc(N)) %>%
+  group_by(Class) %>%
+  mutate(Rank = row_number()) %>%
+  dplyr::filter(Rank <= 5) %>%
+  ggplot(aes(x=forcats::fct_reorder(Name, N, .desc=TRUE), y = N, fill = Class))+
+  geom_col() +
+  facet_wrap(~Class, nrow = 1, scales = "free_x") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, vjust=1, hjust=1),
+        panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank()) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442"))
+
+
+#ggsave("Repeats distribution by Name.svg", width = 8, height = 3.5)
+```
+
