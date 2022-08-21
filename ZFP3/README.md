@@ -2,4 +2,6 @@ ZFP3 is a 13-finger long C2H2-type zinc finger protein in human genome. Accordin
 
 This repository contains all the data analysis workflow for my upcoming ZFP3 paper. If you have any question or issue, please do not hesitate to contact me (zeropin@live.cn).
 
+![](Figure%201/Figure%201.png)
+
 Zheng Zuo (左政)
