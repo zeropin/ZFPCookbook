@@ -1,7 +1,7 @@
 ---
 title: "Correlation analysis of ZIM3's flanking motifs"
 author: Zheng Zuo
-date: "Jun 1, 2022"
+date: "Aug 21, 2022"
 output:
   html_document:
     df_print: paged
@@ -32,99 +32,75 @@ border_width <- 40
 upstream_flank <- 7
 downstream_flank <- 18
 
-ZIM3.peaks <- genomation::readBed("ChIP-exo data/MACS/ZIM3_peaks.narrowPeak")
-load("ZIM3.exo.reads.RData") # Load processed ChIP-exo data of ZIM3, including exo reads and peaks positions in hg38 genome.
+ZIM3.peaks <- genomation::readBed("data/ZIM3_peaks.narrowPeak")
+
+Exo.plus = "data/ZIM3.plus.bigwig"
+Exo.minus= "data/ZIM3.minus.bigwig"
 ```
 
-
-
-```{r message=FALSE, warning=FALSE, eval=FALSE}
-# Sorting and counting ChIP-exo reads based on chromosome and its first base position(defined as edge)
-
-ZIM3_exo_reads <- genomation::readBed("ChIP-exo data/ZIM3.bed") %>%
-                    as_tibble() %>%
-                    dplyr::mutate(edge=ifelse(strand=="+",start,end)) %>%
-                    dplyr::count(seqnames, strand, edge) %>%
-                    dplyr::arrange(seqnames, strand, edge) %>%
-                    group_by(seqnames, strand)
-
-# Spliting ChIP-exo reads to separate data tables based on chromosome to speed up computation process
-ZIM3_exo_reads_split <- ZIM3_exo_reads %>% group_split()
-
-ZIM3_exo_reads_by_chrome_strand <- matrix(data=ZIM3_exo_reads_split, nrow = 188, ncol = 2, byrow=TRUE)
-rownames(ZIM3_exo_reads_by_chrome_strand) = group_keys(ZIM3_exo_reads)[[1]][seq(1,376,2)]
-colnames(ZIM3_exo_reads_by_chrome_strand) = c("+", "-")
-
-#save(list = "ZIM3_exo_reads_by_chrome_strand", file = "ZIM3.exo.reads.RData")
-
-load("ZIM3.exo.reads.RData")
-rm(ZIM3_exo_reads)
-```
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
-countExo <- function(chrom, start, end, direction, exoReads = ZIM3_exo_reads_by_chrome_strand) {
-  if (direction == "+") {
-    upstream_count <- exoReads[chrom, "+"][[1]] %>%
-      filter(between(edge, start - border_width, end)) %>%
-      tally(wt = n)
-
-    downstream_count <- exoReads[chrom, "-"][[1]] %>%
-      filter(between(edge, start, end + border_width)) %>%
-      tally(wt = n)
-  }
-  else if (direction == "-") {
-    upstream_count <- exoReads[chrom, "-"][[1]] %>%
-      filter(between(edge, start, end + border_width)) %>%
-      tally(wt = n)
-
-    downstream_count <- exoReads[chrom, "+"][[1]] %>%
-      filter(between(edge, start - border_width, end)) %>%
-      tally(wt = n)
-  }
-
-  return((upstream_count + downstream_count)[[1]])
+countExo <- function(Sites){
+  colNum  = nchar(anchor)+2*border_width
+  windows = promoters(Sites, upstream = border_width,downstream =nchar(anchor)+border_width)
+  N = length(Sites)
+  
+  if(!isEmpty(import.bw(Exo.plus, which = windows))){
+      Reads.plus <- genomation::ScoreMatrix(target = Exo.plus, strand.aware = TRUE, unique = FALSE,
+                                            windows= windows)@.Data %>% matrix(ncol = colNum)}
+  else
+      Reads.plus <- matrix(0L, nrow = length(Sites), ncol = colNum)
+      
+  
+  if(!isEmpty(import.bw(Exo.minus, which = windows))){
+      Reads.minus<- genomation::ScoreMatrix(target = Exo.minus, strand.aware = TRUE, unique=FALSE,
+                              windows= windows)@.Data %>% matrix(ncol = colNum)}
+  else
+      Reads.minus<- matrix(0L, nrow = length(Sites), ncol = nchar(anchor)+2*border_width)
+ 
+  Reads.Forward = vector(length = N)
+  Reads.Forward[which(Sites@strand=="+")] = .rowSums(Reads.plus[which(Sites@strand=="+"), 1:(border_width+nchar(anchor))],
+                                                     m = length(which(Sites@strand=="+")),
+                                                     n = (border_width+nchar(anchor)))
+  Reads.Forward[which(Sites@strand=="-")] = .rowSums(Reads.minus[which(Sites@strand=="-"), 1:(border_width+nchar(anchor))],
+                                                     m = length(which(Sites@strand=="-")),
+                                                     n = (border_width+nchar(anchor)))
+  Reads.Reverse = vector(length = N)
+  Reads.Reverse[which(Sites@strand=="+")] = .rowSums(Reads.minus[which(Sites@strand=="+"), (border_width+1):(2*border_width+nchar(anchor))],
+                                                     m = length(which(Sites@strand=="+")),
+                                                     n = (border_width+nchar(anchor)))
+  Reads.Reverse[which(Sites@strand=="-")] = .rowSums(Reads.plus[which(Sites@strand=="-"), (border_width+1):(2*border_width+nchar(anchor))],
+                                                     m = length(which(Sites@strand=="-")),
+                                                     n = (border_width+nchar(anchor)))
+  
+  return(Reads.Forward+Reads.Reverse)
 }
 
-anchorModel <- function(anchor) {
-  # Finding all anchor sites within ZIM3 ChIP-exo peaks
+anchorModel <- function(anchor, method = "linear", lambda) {
+  # Finding all anchor sites within ZNF483 ChIP-exo peaks
   Sites <- TFCookbook::matchSite(site = anchor,
                                       subject = ZIM3.peaks,
-                                      genome = "hg38")%>%
-           subset(seqnames %in% rownames(ZIM3_exo_reads_by_chrome_strand)) %>%
-           as_tibble() %>%
-   # select(seqnames, start, end, strand) %>%
-           mutate(exo_count = mapply(countExo,
-                                    as.character(seqnames), start, end, strand))
+                                      genome = "hg38")
 
-  # Extending the anchor position by fixed upstream and downstream distances
+  Sites$exo_count = countExo(Sites)
+  
+  Sites$Sequence  = BSgenome::getSeq(x = BSgenome.Hsapiens.UCSC.hg38,
+                                     names = promoters(Sites,
+                                                       upstream = upstream_flank,
+                                                       downstream = nchar(anchor)+downstream_flank),
+                                     as.character = TRUE)
   Sites %<>%
-    filter(exo_count > 0) %>%
-    mutate(
-      start = if_else(strand == "+",
-        start - upstream_flank, start - downstream_flank
-      ),
-      end = if_else(strand == "+",
-        end + downstream_flank, end + upstream_flank
-      ),
-      Energy = -log(exo_count)
-    )
+    subset(exo_count>0) %>%
+    as_tibble() %>%
+    mutate(Energy = -log(exo_count))
 
-  # Extracting full sequences surrounding the anchor sites
-  Sites$Sequence <- BSgenome::getSeq(Hsapiens,
-    names = Sites$seqnames,
-    start = Sites$start,
-    end   = Sites$end,
-    strand= Sites$strand,
-    as.character=TRUE
-  )
-
-  return(TFCookbook::buildEnergyModel(Sites))
-}
-
-
-addAnchorMatrix <- function(energyMatrix, anchor, position, height){
-  energyMatrix[,position:(position+nchar(anchor)-1)] <- -height*TFCookbook::anchorMatrix(anchor)
-  return(energyMatrix)
+  if(method == "linear")
+    TFCookbook::buildEnergyModel(data = Sites, method = "linear")%>% return
+  else if(missing(lambda))
+    TFCookbook::buildEnergyModel(data = Sites, method = method)  %>% return
+  else{
+    TFCookbook::buildEnergyModel(data = Sites, method = method, lambda = lambda) %>% return 
+  }
 }
 
 ```
@@ -132,7 +108,7 @@ addAnchorMatrix <- function(energyMatrix, anchor, position, height){
 
 ## Inferring flanking motifs based on prefixed intact core
 ```{r eval = FALSE}
-Model.AACAGAAA = anchorModel("AACAGAAA")
+Model.AACAGAAA = anchorModel("AACAGAAA", method = "linear")
 
 #save(list = "Model.AACAGAAA", file = "ZIM3.Model.AACAGAAA.RData")
 Model.AACAGAAA %>% as.PEM() %>%
@@ -163,7 +139,7 @@ singleVariants <- tibble(Sequence = TFCookbook::kmer(8)) %>%
 
 ```{r echo=FALSE}
 #save(list = "singleVariants", file = "ZIM3.Models.RData")
-load("ZIM3.Models.RData")
+load("data/ZIM3.Models.RData")
 
 singleVariants %>%
   arrange(desc(Anchors.count))
@@ -173,7 +149,7 @@ singleVariants %>%
 
 ### Building Heatmap and Hiechical clustering based on the correlation coefficients between pairs of extended motifs
 ```{r fig.height=5.5, fig.width=5, message=FALSE, warning=FALSE}
-Heatmap_data <- sapply(singleVariants$Model, function(x) x$coefficients[c(2:22,47:91)]) %>%
+Heatmap_data <- sapply(singleVariants$Model, function(x) x$coefficients[-1]) %>%
 #Heatmap_data <- sapply(singleVariants$Model, function(x) x$coefficients[c(62:91)]) %>%
   na.omit() %>%
   as.data.frame()
