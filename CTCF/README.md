@@ -1,5 +1,5 @@
 ## Introduction
-This sub-repository of ZFPCookbook contains all the processed data and analysis workflow of CTCF in R for our upcoming paper ["Quantitative analysis of ZFY and CTCF reveals dependent recognition of tandem zinc finger proteins"](https://www.biorxiv.org/content/10.1101/637298v2), which is primarily done in Fordyce lab at Stanford University. The raw sequencing data has been deposited at [NCBI GEO database](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE188166).
+This sub-repository of ZFPCookbook contains all the processed data and analysis workflow of CTCF in R for our upcoming paper ["Quantitative analysis of ZFY and CTCF reveals dependent recognition of tandem zinc finger proteins"](https://www.biorxiv.org/content/10.1101/637298v2), which was partly done at Stormo lab and Fordyce lab during my stay at WashU and Stanford. The raw sequencing data has been deposited at [NCBI GEO database](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE188166). The structural comparison model between two CTCF constructs (PDB #5KKQ, #5YEL) can be accessed at [Structural comparison model](https://github.com/zeropin/ZFPCookbook/blob/master/CTCF/data/Structural%20comparison%20(2022).cxs).
 
 Please contact me <zeropin@live.cn> if you have any question.
 
