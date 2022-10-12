@@ -1,0 +1,161 @@
+---
+title: "Analysis of ZNF382 Spec-seq data"
+author: Zheng Zuo
+date: "Oct 12, 2022"
+output:
+  html_document:
+    df_print: paged
+    theme: lumen
+    highlight: pygments
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r include=FALSE}
+library(stringr)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(TFCookbook)
+library(ggrepel)
+library(ggalluvial)
+
+ChIP.reference      = "GGAGACATTACTACAGATCCCACA"
+
+library_type <- function(seq) {
+  if      (stringr::str_detect(seq, "GGAGACATTACTACAGATCCCACA")) return("ChIP.reference")
+  else if (stringr::str_detect(seq, "CATAACGTTCTATGCGAATACTAT")) return("ChIP.background")
+  else if (stringr::str_detect(seq, "....ACATTACTACAGATCCCACA")) return("ChIP.R1")
+  else if (stringr::str_detect(seq, "GGAG....TACTACAGATCCCACA")) return("ChIP.R2")
+  else if (stringr::str_detect(seq, "GGAGACAT....ACAGATCCCACA")) return("ChIP.R3")
+  else if (stringr::str_detect(seq, "GGAGACATTACT....ATCCCACA")) return("ChIP.R4")
+  else if (stringr::str_detect(seq, "GGAGACATTACTACAG....CACA")) return("ChIP.R5")
+  else if (stringr::str_detect(seq, "GGAGACATTACTACAGATCC....")) return("ChIP.R6")
+  else return("Unclassified") 
+}
+
+load("ZNF382.RData")
+```
+
+## Background and Experimental design
+
+Human ZNF382 is a KRAB- zinc finger protein (ZFP) consisting of 9 C2H2 fingers.
+![Summary of ZNF382 information](./Figure 1 (upper half).png)
+
+## Spec-seq data analysis
+
+### Counting sequences from raw sequencing files
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+require(readr)
+require(dplyr)
+
+Sample1.Bound <- read_table2("Sample1.Bound", 
+    col_names = c("Reads", "Sequence"))
+
+
+Sample2.Bound <- read_table2("Sample2.Bound", 
+    col_names = c("Reads", "Sequence"))
+
+
+Sample1.Unbound <- read_table2("Sample1.Unbound", 
+    col_names = c("Reads", "Sequence"))
+
+
+Sample2.Unbound <- read_table2("Sample2.Unbound", 
+    col_names = c("Reads", "Sequence"))
+
+Sample2.Bound
+
+#save(list = c("Sample1.processed", "Sample2.processed"), file = "ZNf382.RData")
+```
+
+
+### Caculating relative binding affinity and energy based on Bound and Unbound reads for each variant.
+```{r eval=FALSE, warning=FALSE}
+Sample1.processed <- 
+  inner_join(Sample1.Bound, Sample1.Unbound, by = "Sequence") %>%
+  mutate(Library = purrr::map_chr(Sequence, library_type)) %>%
+  dplyr::rename(Bound = 'Reads.x', Unbound = 'Reads.y') %>%
+  filter(Library != "Unclassified", !str_detect(Sequence, "N")) %>%
+  mutate("B/Ub" = Bound / Unbound,
+         Energy = -log(Bound / Unbound),
+         Mismatch.ChIP      = TFCookbook::countMismatch(Sequence, ChIP.reference),
+         )
+
+Sample2.processed <- 
+  inner_join(Sample2.Bound, Sample2.Unbound, by = "Sequence") %>%
+  mutate(Library = purrr::map_chr(Sequence, library_type)) %>%
+  dplyr::rename(Bound = 'Reads.x', Unbound = 'Reads.y') %>%
+  filter(Library != "Unclassified", !str_detect(Sequence, "N")) %>%
+  mutate("B/Ub" = Bound / Unbound,
+         Energy = -log(Bound / Unbound),
+         Mismatch.ChIP = TFCookbook::countMismatch(Sequence, ChIP.reference),
+         ) %>%
+  arrange(Energy)
+```
+```{r}
+Sample2.processed
+
+#write.csv(Sample1.processed, file = "ZNF382.replicate1.csv")
+#write.csv(Sample2.processed, file = "ZNF382.replicate2.csv")
+```
+
+
+### Summary of Sequencing reads in Bound and Unbound fractions, respectively
+```{r}
+Sample1.processed %>%
+  group_by(Library) %>%
+  summarize("Number of variants in library"=n(),
+            "Total Bound reads"=sum(Bound),
+            "Total Unbound reads"=sum(Unbound),
+            "Bound/Unbound" = sum(Bound)/sum(Unbound))
+```
+
+```{r include=FALSE}
+Sample2.processed %>%
+  group_by(Library) %>%
+  summarize("Number of variants in library"=n(),
+            "Total Bound reads"=sum(Bound),
+            "Total Unbound reads"=sum(Unbound),
+            "Bound/Unbound" = sum(Bound)/sum(Unbound))
+```
+
+
+### Build motif models based on all double variants of ChIP-reference site
+
+```{r fig.height=2.2, fig.width=9, message=FALSE, warning=FALSE}
+Sample2.processed %>%
+  filter(Mismatch.ChIP <= 2) %>%
+  TFCookbook::buildEnergyModel() %>%
+  TFCookbook::getEnergyMatrix() -> ZNF382.PEM
+
+ZNF382.PEM %>%
+  TFCookbook::plotEnergyLogo(col_scheme = "default") +
+  ggtitle("Position energy logo of human ZNF382 derived from Spec-seq data, Sample #2")
+```
+
+### Position energy matrix corresponding to the derived motif
+```{r}
+ZNF382.PEM
+
+#write.table(ZNF382.PEM, "ZNF382.motif.txt")
+```
+
+### Samples reproducibility check
+```{r fig.height=4, fig.width=4, warning=FALSE}
+require(ggbeeswarm)
+
+inner_join(Sample1.processed, Sample2.processed, by = c("Sequence", "Library"), suffix = c(".Sample1", ".Sample2")) %>%
+  dplyr::filter(Library != "Unclassified") %>%
+  ggplot(aes(x = Energy.Sample1,
+             y = Energy.Sample2))+
+  geom_point()+
+  theme_bw() +
+  ggpubr::stat_cor()+
+  xlab("Relative binding energy in Sample #1")+
+  ylab("Relative binding energy in Sample #2")
+```
