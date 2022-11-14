@@ -1,0 +1,99 @@
+---
+title: "Distribution of top 500 ChIP-exo peaks for ZNF430 and its paralogs"
+author: "Zheng Zuo"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+require(dplyr)
+require(ggplot2)
+require(GenomicRanges)
+require(TECookbook)
+
+data("Repeats.hg19")
+
+ZNF714.peaks = genomation::readBed("GSM2466641_ZNF714_peaks_processed_score_signal_exo.bed")
+ZNF714.peaks = ZNF714.peaks[order(ZNF714.peaks$score, decreasing = TRUE)[1:500]] %>%
+               TECookbook::annotateSitesInRepeat(AnnotationData = Repeats.hg19,
+                                                   output = "all")
+ZNF714.peaks %>%
+  as_tibble()  %>%
+  mutate(Repeat = case_when(Repeat_Name=="THE1A" ~ "THE1A",
+                            Repeat_Name=="THE1B" ~ "THE1B",
+                            Repeat_Name=="THE1C" ~ "THE1C",
+                            Repeat_Name=="THE1D" ~ "THE1D",
+                            is.na(Repeat_Name) ~ "Non-repeats",
+                            TRUE ~ "Other repeats")) %>%
+  group_by(Repeat) %>%
+  tally %>%
+  mutate(TF = "ZNF714") -> table.ZNF714
+
+ZNF431.peaks = genomation::readBed("GSM2466554_ZNF431_peaks_processed_score_signal_exo.bed")
+ZNF431.peaks = TECookbook::annotateSitesInRepeat(ZNF431.peaks, AnnotationData = Repeats.hg19,
+                                                   output = "all")
+
+ZNF431.peaks %>%
+  as_tibble()  %>%
+  mutate(Repeat = case_when(Repeat_Name=="THE1A" ~ "THE1A",
+                            Repeat_Name=="THE1B" ~ "THE1B",
+                            Repeat_Name=="THE1C" ~ "THE1C",
+                            Repeat_Name=="THE1D" ~ "THE1D",
+                            is.na(Repeat_Name) ~ "Non-repeats",
+                            TRUE ~ "Other repeats")) %>%
+  group_by(Repeat) %>%
+  tally %>%
+  mutate(TF = "ZNF431") -> table.ZNF431
+  
+  
+ZNF430.peaks = genomation::readBed("GSM2466553_ZNF430_peaks_processed_score_signal_exo.bed")
+ZNF430.peaks = TECookbook::annotateSitesInRepeat(mySiteList = ZNF430.peaks,
+                                                   AnnotationData = Repeats.hg19,
+                                                   output = "all")
+
+
+ZNF430.peaks %>%
+  as_tibble()  %>%
+  mutate(Repeat = case_when(Repeat_Name=="THE1A" ~ "THE1A",
+                            Repeat_Name=="THE1B" ~ "THE1B",
+                            Repeat_Name=="THE1C" ~ "THE1C",
+                            Repeat_Name=="THE1D" ~ "THE1D",
+                            is.na(Repeat_Name) ~ "Non-repeats",
+                            TRUE ~ "Other repeats")) %>%
+  group_by(Repeat) %>%
+  tally %>%
+  mutate(TF = "ZNF430") -> table.ZNF430
+
+ZNF100.peaks = genomation::readBed("GSM2466465_ZNF100_peaks_processed_score_signal_exo.bed")
+ZNF100.peaks = ZNF100.peaks[order(ZNF100.peaks$score, decreasing = TRUE)[1:500]] %>%
+                 TECookbook::annotateSitesInRepeat(AnnotationData = Repeats.hg19,
+                                                   output = "all")
+
+ZNF100.peaks %>%
+  as_tibble()  %>%
+  mutate(Repeat = case_when(Repeat_Name=="THE1A" ~ "THE1A",
+                            Repeat_Name=="THE1B" ~ "THE1B",
+                            Repeat_Name=="THE1C" ~ "THE1C",
+                            Repeat_Name=="THE1D" ~ "THE1D",
+                            is.na(Repeat_Name) ~ "Non-repeats",
+                            TRUE ~ "Other repeats")) %>%
+  group_by(Repeat) %>%
+  tally %>%
+  mutate(TF = "ZNF100") -> table.ZNF100
+  
+  rbind(table.ZNF714, table.ZNF431, table.ZNF430, table.ZNF100) %>%
+  mutate(TF     = factor(TF, levels = c("ZNF714", "ZNF431", "ZNF430", "ZNF100")),
+         Repeat = factor(Repeat,
+                         levels = c("THE1A", "THE1B", "THE1C", "THE1D", "Other repeats", "Non-repeats"))) %>%
+  ggplot(aes(x = Repeat, y = n))+
+  geom_col() +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank(), panel.grid.major.x = element_blank())+
+  facet_wrap(~ TF,
+             ncol = 1,strip.position = "right")+
+  xlab("Repeat Type") + ylab("N")
+
+#ggsave("Repeats enrichment.svg", height = 6.1, width = 5)
+```
+
