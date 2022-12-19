@@ -1,0 +1,92 @@
+---
+title: "Aggregate H3K9mes signals analysis around putative ZNF430 binding sites in THE1B"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## Extracting ZNF430 binding sites from all human THE1B elements
+```{r eval = FALSE}
+require(dplyr)
+require(GenomicRanges)
+
+ZNF430.THE1B.sites = TECookbook::liftOut("../Transposon Elements/hg38.fa.align",
+                                         Repeat = "THE1B",
+                                         start_pos = 197, end_pos = 222)
+
+ZNF430.THE1B.sites = subset(ZNF430.THE1B.sites, seqnames %in% paste0("chr",c(1:23,"X","Y")))
+require(BSgenome.Hsapiens.UCSC.hg38)
+ZNF430.THE1B.sites$Sequence = getSeq(Hsapiens, ZNF430.THE1B.sites, as.character=TRUE)
+THE1D.sites$Sequence = getSeq(Hsapiens, THE1D.sites, as.character=TRUE)
+
+ZNF430.full.sites = subset(ZNF430.THE1B.sites, width == 26)
+
+ZNF430.full.sites$Mismatch = TFCookbook::countMismatch(ZNF430.full.sites$Sequence,
+                                                       "TCTTGCCTGCCGCCATGTAAGACGTG")
+
+save("ZNF430.full.sites", file = "ZNF430.full.sites.RData")
+```
+
+
+### The sequence logo for all full-length putative ZNF430 binding sites
+```{r fig.height=0.9, fig.width=5, message=FALSE, warning=FALSE}
+require(dplyr)
+require(GenomicRanges)
+load("ZNF430.full.sites.RData")
+ZNF430.full.sites$Sequence %>%
+  ggseqlogo::ggseqlogo()
+```
+
+### The distribution of mismatches to the consensus sites
+```{r fig.height=1.2, fig.width=5}
+require(ggplot2)
+ZNF430.full.sites %>% 
+  as_tibble() %>%
+  ggplot(aes(x = Mismatch))+
+  geom_histogram(binwidth = 1)+
+  theme_bw()
+```
+
+
+## Aggregate H3K9me3 signals around each class of sites
+```{r message=FALSE, warning=FALSE, fig.height=3.3, fig.width=12}
+require(soGGi)
+ZNF430.Strong.sites       = subset(ZNF430.full.sites, Mismatch<2)
+ZNF430.Intermediate.sites = subset(ZNF430.full.sites, between(Mismatch, 2, 4))
+ZNF430.Weak.sites         = subset(ZNF430.full.sites, Mismatch>4)
+
+ZNF430.Weak.sites
+ranges = GRangesList(ZNF430.Strong.sites, ZNF430.Intermediate.sites, ZNF430.Weak.sites)
+names(ranges) = c("Strong ZNF430 sites", "Intermediate ZNF430 sites", "Weak ZNF430 sites")
+
+
+soGGi::regionPlot(bamFile = "../Chromatin signals/Human/H3K9me3/ENCFF073GYV.FC.Trophoblast(20weeks).bigWig",
+                  testRanges = ZNF430.full.sites, 
+                  samplename = "Trophoblast tissue (20 weeks)",
+                  distanceAround = 4000, format = "bigwig") -> H3K9me3.Trophoblast.20.signals
+
+soGGi::regionPlot(bamFile = "../Chromatin signals/Human/H3K9me3/ENCFF040IBX.FC.Trophoblast(40weeks).bigWig",
+                  testRanges = ZNF430.full.sites, 
+                  samplename = "Trophoblast tissue (40 weeks)",
+                  distanceAround = 4000, format = "bigwig") -> H3K9me3.Trophoblast.40.signals
+
+soGGi::regionPlot(bamFile = "../Chromatin signals/Human/H3K9me3/ENCFF509OEW.FC.Hepatocyte.bigWig",
+                  testRanges = ZNF430.full.sites,
+                  samplename = "Hepatocytes", 
+                  distanceAround = 4000, format = "bigwig") -> H3K9me3.Hepatocyte.signals
+
+c(H3K9me3.Trophoblast.20.signals, H3K9me3.Trophoblast.40.signals,
+  H3K9me3.Hepatocyte.signals) %>%
+soGGi::plotRegion(groupBy = "Sample",
+                  gts = ranges,
+                  colourBy = "Group",
+                  freeScale = FALSE) +
+  theme_bw() + ylab("Fold change over control") +
+  scale_x_continuous(expand = c(0,0))+
+  scale_y_continuous(expand = c(0,0.15), limits = c(0.6, 2.45))+
+  theme(panel.grid.minor = element_blank(), axis.title.x = element_blank())
+
+#ggsave("H3K9me3 signal in placenta.svg", height = 3.3, width = 12)
+```
+
