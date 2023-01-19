@@ -31,7 +31,7 @@ save("ZNF430.full.sites", file = "ZNF430.full.sites.RData")
 ```{r fig.height=0.9, fig.width=5, message=FALSE, warning=FALSE}
 require(dplyr)
 require(GenomicRanges)
-load("ZNF430.full.sites.RData")
+load("data/ZNF430.full.sites.RData")
 ZNF430.full.sites$Sequence %>%
   ggseqlogo::ggseqlogo()
 ```
