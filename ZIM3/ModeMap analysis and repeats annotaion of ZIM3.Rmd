@@ -25,13 +25,13 @@ upstream_flank  = 7
 downstream_flank= 18
 border_width = 35
 
-ZIM3.peaks <- genomation::readBed("ChIP-exo data/MACS/ZIM3_peaks.narrowPeak")
+ZIM3.peaks <- genomation::readBed("data/ZIM3_peaks.narrowPeak")
 
-load("ZIM3.Model.AACAGAAA.RData")
+load("data/ZIM3.Model.AACAGAAA.RData")
 PEM.AACAGAAA <- as.PEM(Model.AACAGAAA)
 
-Exo.plus = "ChIP-exo data/ZIM3.plus.bigwig"
-Exo.minus= "ChIP-exo data/ZIM3.minus.bigwig"
+Exo.plus = "data/ZIM3.plus.bigwig"
+Exo.minus= "data/ZIM3.minus.bigwig"
 ```
 
 
@@ -39,6 +39,8 @@ Exo.minus= "ChIP-exo data/ZIM3.minus.bigwig"
 
 ## Plotting aggregate ChIP-exo footprints with fixed core
 
+
+makeFootprints is used to calculate the aggregate ChIP-exo footprints around given set of binding sites
 ```{r}
 makeFootprints <- function(sites){
   colNum  = nchar(anchor)+2*border_width
@@ -74,7 +76,7 @@ makeFootprints <- function(sites){
 }
 ```
 
-
+plotFootprints is used to plot the aggregate ChIP-exo footprints around any given anchor site.
 ```{r fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
 plotFootprints <- function(anchor, PEM = PEM.AACAGAAA, save = TRUE){
   Sites = TFCookbook::matchSite(site = anchor,
@@ -173,7 +175,7 @@ plotFootprints <- function(anchor, PEM = PEM.AACAGAAA, save = TRUE){
 plotFootprints("AACAGAAT", save = FALSE)
 ```
 
-
+Enuemerating all single variants of the consensus core AACAGAAA
 ```{r message=FALSE, warning=FALSE}
 (singleVariants = TFCookbook::selectVariants(reference = "AACAGAAA", maxMismatches = 1))
 ```
@@ -280,7 +282,7 @@ plotFootprintsWithMultipleAnchor <- function(anchors, PEM = PEM.AACAGAAA, save){
 
 
 
-
+Sorting different cores into three separate classes based on the ChIP-exo footprint profiles
 ```{r}
 regular.Seqnames = paste0("chr", c(1:23,"X","Y"))
 
@@ -329,10 +331,13 @@ Specific.Sites = c(subset(Good.Sites, predicted.Energy < (-0.25)),
 ```
 
 ## Annotating specific sites with association of repeat elements
+
+
 ```{r message=FALSE, warning=FALSE}
+## TECookbook package is needed to annotate the genomic binding sites.
 require(TECookbook)
-data("Repeats.hg38")
-Specific.Sites = TECookbook::annotateSitesInRepeat(Specific.Sites, Repeats.hg38, output = "all")
+data("Repeats.Human.hg38")
+Specific.Sites = TECookbook::annotateSitesInRepeat(Specific.Sites, Repeats.Human.hg38, output = "all")
 
 Specific.Sites %>% as_tibble()
 ```
@@ -341,9 +346,10 @@ Specific.Sites %>% as_tibble()
 ```{r fig.height=2.5, fig.width=5, message=FALSE, warning=FALSE}
 require(ggplot2)
 Specific.Sites %>% as_tibble() %>%
-  mutate(Class = factor(case_when(Repeat_Class %in% c("LINE", "SINE", "LTR") ~as.character(Repeat_Class),
-                           is.na(Repeat_Class) ~ "Non-Repeats",
-                           TRUE ~ "Other Repeats"),
+  tidyr::separate(col = Repeat_Family, sep = "/", into = c("Class", "Repeat_Family")) %>%
+  mutate(Class = factor(case_when(Class %in% c("LINE", "SINE", "LTR") ~ as.character(Class),
+                                  is.na(Class) ~ "Non-Repeats",
+                                  TRUE ~ "Other Repeats"),
                         levels = c("Non-Repeats", "LINE", "LTR", "SINE", "Other Repeats"))) %>%
  # dplyr::filter(Repeat_Class == "LINE") %>%
   group_by(Class) %>%
@@ -366,11 +372,12 @@ Specific.Sites %>% as_tibble() %>%
 ```
 
 
-```{r fig.height=2.5, fig.width=5, message=FALSE, warning=FALSE}
-Specific.Sites %>% as_tibble() %>%
+```{r fig.height=2.5, fig.width=6, message=FALSE, warning=FALSE}
+Specific.Sites %>% as_tibble %>%
+  tidyr::separate(col = Repeat_Family, sep = "/", into = c("Class", "Repeat_Family")) %>%
   mutate(Name = paste0(Repeat_Family, "|", Repeat_Name),
-         Class = factor(case_when(Repeat_Class %in% c("LINE", "SINE", "LTR") ~as.character(Repeat_Class),
-                           is.na(Repeat_Class) ~ "Non-Repeats",
+         Class = factor(case_when(Class %in% c("LINE", "SINE", "LTR") ~as.character(Class),
+                           is.na(Class) ~ "Non-Repeats",
                            TRUE ~ "Other Repeats"),
                         levels = c("LINE", "LTR", "SINE", "Other Repeats", "Non-Repeats")))  %>%
   group_by(Class, Name) %>%

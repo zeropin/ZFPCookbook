@@ -30,8 +30,8 @@ border_width = 30
 
 ZNF343.peaks <- genomation::readBed("data/ZNF343_peaks.bed")
 
-Exo.plus = "../ChIP-exo Reprocessing(hg19)/ZNF343.plus.bigwig"
-Exo.minus= "../ChIP-exo Reprocessing(hg19)/ZNF343.minus.bigwig"
+Exo.plus = "data/ZNF343.plus.bigwig"
+Exo.minus= "data/ZNF343.minus.bigwig"
 
 load("data/ZNF343_models.GAAGCG.RData")
 PEM.GAAGCG <- as.PEM(ZNF343.Model.GAAGCG)
@@ -177,7 +177,7 @@ plotFootprints("GAAGCG", save = FALSE)
 ```
 
 ## Plotting footprinting patterns with grouped anchors
-```{r}
+```{r warning=FALSE}
 plotFootprintsWithMultipleAnchor <- function(anchors, PEM = PEM.GAAGCG, save){
   Sites <- lapply(anchors, function(anchor) matchSite(anchor, subject = ZNF343.peaks, genome = "hg19")) %>%
            do.call("c",.) %>% unique()
@@ -311,18 +311,19 @@ Specific.Sites
 
 
 ## Annotating specific binding sites with association of repeat elements
-```{r}
+```{r warning=FALSE}
 require(TECookbook)
 
-data("Repeats.hg19")
+data("Repeats.Human.hg19")
 load("data/ZNF343.specific.sites.RData")
 Specific.Sites
-Specific.Sites = TECookbook::annotateSitesInRepeat(Specific.Sites, Repeats.hg19, output = "all")
+Specific.Sites = TECookbook::annotateSitesInRepeat(Specific.Sites, Repeats.Human.hg19, output = "all")
 
 
 Specific.Sites %>% as_tibble() %>%
-  mutate(Class = factor(case_when(Repeat_Class %in% c("LINE", "SINE", "LTR") ~as.character(Repeat_Class),
-                           is.na(Repeat_Class) ~ "Non-Repeats",
+  tidyr::separate(col = Repeat_Family, sep = "/", into = c("Class", "Repeat_Family")) %>%
+  mutate(Class = factor(case_when(Class %in% c("LINE", "SINE", "LTR") ~as.character(Class),
+                           is.na(Class) ~ "Non-Repeats",
                            TRUE ~ "Other Repeats"),
                         levels = c("Non-Repeats", "LINE", "LTR", "SINE", "Other Repeats"))) %>%
  # dplyr::filter(Repeat_Class == "LINE") %>%
@@ -347,11 +348,12 @@ Specific.Sites %>% as_tibble() %>%
 
 
 
-```{r}
+```{r fig.height=2.5, fig.width=6, warning=FALSE}
 Specific.Sites %>% as_tibble() %>%
+  tidyr::separate(col = Repeat_Family, sep = "/", into = c("Class", "Repeat_Family")) %>%
   mutate(Name = paste0(Repeat_Family, "|", Repeat_Name),
-         Class = factor(case_when(Repeat_Class %in% c("LINE", "SINE", "LTR") ~as.character(Repeat_Class),
-                           is.na(Repeat_Class) ~ "Non-Repeats",
+         Class = factor(case_when(Class %in% c("LINE", "SINE", "LTR") ~as.character(Class),
+                           is.na(Class) ~ "Non-Repeats",
                            TRUE ~ "Other Repeats"),
                         levels = c("LINE", "LTR", "SINE", "Other Repeats", "Non-Repeats")))  %>%
   group_by(Class, Name) %>%
