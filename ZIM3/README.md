@@ -10,4 +10,4 @@ remotes::install_github("zeropin/TFCookbook")
 remotes::install_github("zeropin/TECookbook")
 ```
 
-![](Figure%205%20(ZIM3).png)
+![](images/Figure%205%20(ZIM3).png)

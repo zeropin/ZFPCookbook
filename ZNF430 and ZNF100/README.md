@@ -4,4 +4,4 @@ Zheng Zuo
 
 zeropin@live.cn
 
-<img src="THE1 being silenced figure.png" style="zoom:60%;" />
+<img src="images/THE1 being silenced figure.png" style="zoom:60%;" />
