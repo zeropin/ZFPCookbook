@@ -5,6 +5,9 @@ TFCookbook and TECookbook packages are needed to run this analysis workflow.
 You can pull and install these two packages through R command:
 ```r
 remotes::install_github("zeropin/TFCookbook")
+```
+
+```r
 remotes::install_github("zeropin/TECookbook")
 ```
 
