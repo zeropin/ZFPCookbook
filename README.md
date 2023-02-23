@@ -1,6 +1,6 @@
 # Zinc Finger Proteins Cookbook
 
-This repository contains all the data analysis workflow of Zinc finger proteins (ZFPs) in my published and to-be-published work, including CTCF, ZIM3, ZFP3, ZNF343, ZNF140, ZNF675, etc. The analysis protocol is organized into subdirectory by the name of corresponding ZFP. Please contact me if you have any question.
+This repository contains all the data analysis workflow of Zinc finger proteins (ZFPs) in my published and to-be-published work, including CTCF, ZIM3, ZFP3, ZNF343, ZNF140, ZNF675, etc. The analysis protocols are organized into subdirectories by the name of corresponding ZFP. Please contact me if you have any question.
 
 For most studied ZFPs, [TFCookbook](https://github.com/zeropin/TFCookbook) package is used for specificity modelling and can be installed via:
 
