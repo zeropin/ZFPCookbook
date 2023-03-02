@@ -2,6 +2,6 @@ ZNF10 is a KRAB-containing zinc finger gene in human genome, and Spec-seq data a
 
 The raw sequencing data can be accsessed via NCBI GEO database (https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE189817)
 
-![](Figure%202.png)
+![](images/Figure%202.png)
 
 Zheng Zuo
