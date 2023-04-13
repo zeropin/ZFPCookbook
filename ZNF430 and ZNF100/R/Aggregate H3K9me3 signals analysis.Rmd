@@ -1,16 +1,25 @@
 ---
 title: "Aggregate H3K9mes signals analysis around putative ZNF430 binding sites in THE1B"
 author: Zheng Zuo
+date: April, 2023
 output:
   html_document:
     df_print: paged
+    theme: lumen
+    highlight: pygments
+    toc: yes
+    toc_float: yes
   pdf_document: default
 ---
 
 ## Extracting ZNF430 binding sites from all human THE1B elements
+
+TECookbook package is needed here for extracting putative ZNF430 binding sites, which can be accessed from [here](https://github.com/zeropin/TECookbook)
+
 ```{r eval = FALSE}
 require(dplyr)
 require(GenomicRanges)
+require(TECookbook)
 
 ZNF430.THE1B.sites = TECookbook::liftOut("../Transposon Elements/hg38.fa.align",
                                          Repeat = "THE1B",
@@ -27,16 +36,17 @@ save("ZNF430.full.sites", file = "ZNF430.full.sites.RData")
 ```
 
 
-### The sequence logo for all full-length putative ZNF430 binding sites
+## The sequence logo for all full-length putative ZNF430 binding sites
 ```{r fig.height=0.9, fig.width=5, message=FALSE, warning=FALSE}
 require(dplyr)
 require(GenomicRanges)
-load("data/ZNF430.full.sites.RData")
+require(ggseqlogo)
+load("ZNF430.full.sites.RData")
 ZNF430.full.sites$Sequence %>%
   ggseqlogo::ggseqlogo()
 ```
 
-### The distribution of mismatches to the consensus site
+### The distribution of mismatches to the consensus site within THE1B
 ```{r fig.height=1.2, fig.width=5, message=FALSE, warning=FALSE}
 require(ggplot2)
 ZNF430.full.sites %>% 
@@ -47,14 +57,16 @@ ZNF430.full.sites %>%
 ```
 
 
-## Aggregate H3K9me3 signals around each class of sites
+## Aggregate H3K9me3 signals around each class of sites in human placental tissues and hepatocytes
+
+First of all, we need sort all putative ZNF430 binding sites into three classess(strong, intermediate, and weak) based on their mismatches to the consensus site within THE1B elements. The H3K9me3 dataset is publicly available from [ENCODE database](https://www.encodeproject.org/).
+
 ```{r message=FALSE, warning=FALSE, fig.height=3.3, fig.width=12}
 require(soGGi)
 ZNF430.Strong.sites       = subset(ZNF430.full.sites, Mismatch<2)
 ZNF430.Intermediate.sites = subset(ZNF430.full.sites, between(Mismatch, 2, 4))
 ZNF430.Weak.sites         = subset(ZNF430.full.sites, Mismatch>4)
 
-ZNF430.Weak.sites
 ranges = GRangesList(ZNF430.Strong.sites, ZNF430.Intermediate.sites, ZNF430.Weak.sites)
 names(ranges) = c("Strong ZNF430 sites", "Intermediate ZNF430 sites", "Weak ZNF430 sites")
 
@@ -80,11 +92,67 @@ c(H3K9me3.Trophoblast.20.signals,
   soGGi::plotRegion(groupBy = "Sample",
                   gts = ranges,
                   colourBy = "Group",
-                  freeScale = FALSE) +
+                  freeScale = TRUE) +
   theme_bw() + ylab("Fold change over control") +
-  scale_x_continuous(expand = c(0,0))+
+  scale_x_continuous(expand = c(0,0)) +
   scale_y_continuous(expand = c(0,0.15), limits = c(0.6, 2.45))+
   theme(panel.grid.minor = element_blank(), axis.title.x = element_blank())
 #ggsave("H3K9me3 signal in placenta.svg", height = 3.3, width = 12)
+```
+
+
+## Aggregate signals around each class of sites in human trophoblast stem cells
+
+This dataset is publicly available from [NCBI GEO database](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE200760)
+```{r message=FALSE, warning=FALSE, fig.height=6.6, fig.width=12}
+require(soGGi)
+
+soGGi::regionPlot(bamFile = "Branco Lab Data/GSM6043306_hTSC_CutRun_H3K9me3.bw",
+                  testRanges = ZNF430.full.sites, 
+                  samplename = "Trophoblast stem cells (H3K9me3, Cut&Run)",
+                  distanceAround = 4000, format = "bigwig") -> H3K9me3.hTSC.signals
+
+soGGi::regionPlot(bamFile = "Branco Lab Data/GSM6043305_hTSC_CutRun_H3K27me3.bw",
+                  testRanges = ZNF430.full.sites, 
+                  samplename = "Trophoblast stem cells (H3K27me3, Cut&Run)",
+                  distanceAround = 4000, format = "bigwig") -> H3K27me3.hTSC.signals
+
+soGGi::regionPlot(bamFile = "Branco Lab Data/GSM6043307_hTSC_CutRun_IgG.bw",
+                  testRanges = ZNF430.full.sites, 
+                  samplename = "Trophoblast stem cells (IgG, Cut&Run)",
+                  distanceAround = 4000, format = "bigwig") -> IgG.hTSC.signals
+
+soGGi::regionPlot(bamFile = "Branco Lab Data/GSM6043300_hTSC_ChIP_H3K27ac.bw",
+                  testRanges = ZNF430.full.sites, 
+                  samplename = "Trophoblast stem cells (H3K27ac, ChIP)",
+                  distanceAround = 4000, format = "bigwig") -> H3K27ac.hTSC.signals
+
+soGGi::regionPlot(bamFile = "Branco Lab Data/GSM6043302_hTSC_ChIP_H3K4me3.bw",
+                  testRanges = ZNF430.full.sites, 
+                  samplename = "Trophoblast stem cells (H3K4me3, ChIP)",
+                  distanceAround = 4000, format = "bigwig") -> H3K4me3.hTSC.signals
+
+soGGi::regionPlot(bamFile = "Branco Lab Data/GSM6043303_hTSC_ChIP_Input.bw",
+                  testRanges = ZNF430.full.sites, 
+                  samplename = "Trophoblast stem cells (Input, ChIP)",
+                  distanceAround = 4000, format = "bigwig") -> Input.hTSC.signals
+
+require(ggplot2)
+c(H3K27ac.hTSC.signals,
+  H3K4me3.hTSC.signals,
+  Input.hTSC.signals,
+  H3K9me3.hTSC.signals,
+  H3K27me3.hTSC.signals,
+  IgG.hTSC.signals) %>%
+  soGGi::plotRegion(groupBy = "Sample",
+                  gts = ranges,
+                  colourBy = "Group",
+                  freeScale = FALSE) +
+  theme_bw() + ylab("CPM") +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 0.35))+
+  theme(panel.grid.minor = element_blank(), axis.title.x = element_blank())
+
+#ggsave("H3K9me3 signal in trophoblast stem cells.svg", height = 6.6, width = 12)
 ```
 
