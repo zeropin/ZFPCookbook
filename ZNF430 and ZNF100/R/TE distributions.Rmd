@@ -6,17 +6,17 @@ output:
     df_print: paged
 ---
 
-```{r}
+```{r warning=FALSE, message=FALSE}
 require(dplyr)
 require(ggplot2)
 require(GenomicRanges)
 require(TECookbook)
 
-data("Repeats.hg19")
+data("Repeats.Human.hg19")
 
 ZNF714.peaks = genomation::readBed("GSM2466641_ZNF714_peaks_processed_score_signal_exo.bed")
 ZNF714.peaks = ZNF714.peaks[order(ZNF714.peaks$score, decreasing = TRUE)[1:500]] %>%
-               TECookbook::annotateSitesInRepeat(AnnotationData = Repeats.hg19,
+               TECookbook::annotateSitesInRepeat(AnnotationData = Repeats.Human.hg19,
                                                    output = "all")
 ZNF714.peaks %>%
   as_tibble()  %>%
@@ -31,7 +31,7 @@ ZNF714.peaks %>%
   mutate(TF = "ZNF714") -> table.ZNF714
 
 ZNF431.peaks = genomation::readBed("GSM2466554_ZNF431_peaks_processed_score_signal_exo.bed")
-ZNF431.peaks = TECookbook::annotateSitesInRepeat(ZNF431.peaks, AnnotationData = Repeats.hg19,
+ZNF431.peaks = TECookbook::annotateSitesInRepeat(ZNF431.peaks, AnnotationData = Repeats.Human.hg19,
                                                    output = "all")
 
 ZNF431.peaks %>%
@@ -49,7 +49,7 @@ ZNF431.peaks %>%
   
 ZNF430.peaks = genomation::readBed("GSM2466553_ZNF430_peaks_processed_score_signal_exo.bed")
 ZNF430.peaks = TECookbook::annotateSitesInRepeat(mySiteList = ZNF430.peaks,
-                                                   AnnotationData = Repeats.hg19,
+                                                   AnnotationData = Repeats.Human.hg19,
                                                    output = "all")
 
 
@@ -67,7 +67,7 @@ ZNF430.peaks %>%
 
 ZNF100.peaks = genomation::readBed("GSM2466465_ZNF100_peaks_processed_score_signal_exo.bed")
 ZNF100.peaks = ZNF100.peaks[order(ZNF100.peaks$score, decreasing = TRUE)[1:500]] %>%
-                 TECookbook::annotateSitesInRepeat(AnnotationData = Repeats.hg19,
+                 TECookbook::annotateSitesInRepeat(AnnotationData = Repeats.Human.hg19,
                                                    output = "all")
 
 ZNF100.peaks %>%
