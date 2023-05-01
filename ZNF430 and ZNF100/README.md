@@ -8,7 +8,7 @@ Briefly, it takes three steps to plot the aggregate H3K9me3 signals in Fig. 1G b
 
 1) Extraction of all putative ZNF430 binding sites from THE1B elements annotated by RepeatMasker alignment file ([hg38.fa.align](http://repeatmasker.org/genomes/hg38/RepeatMasker-rm406-dfam2.0/hg38.fa.align.gz), THE1B positions 197 to 222); 
 2) Sorting of all full-length ZNF430 binding sites based on their number of mismatches to consensus sequence into three classes, i.e., strong, intermediate and weak;
-3) Plotting aggregate H3K9me3 signals around each class of sites using the protocol provided by soGGi package with distanceAround parameter as 4000.
+3) Plotting aggregate H3K9me3 signals around each class of sites using the protocol provided by [soGGi package](https://bioconductor.org/packages/release/bioc/html/soGGi.html) with distanceAround parameter as 4000.
 
 Please contact me if you have any question.
 
