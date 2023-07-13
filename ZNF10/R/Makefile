@@ -2,15 +2,15 @@ aim: ZNF10.Repeat.plus.bedgraph ZNF10.Repeat.minus.bedgraph
 clean:
 	rm *Repeat*
 ZNF10.Repeat.plus.bedgraph:ZNF10.Repeat.bed
-	bedtools genomecov -i ZNF10.Repeat.bed -g ../../reference-genomes/hg38.repeat.sizes -bg -strand + -5|LC_COLLATE=C sort -k1,1 -k2,2n >ZNF10.Repeat.plus.bedgraph
-	#bedGraphToBigWig ZNF10.Repeat.plus.bedgraph ../../reference-genomes/hg38.repeat.sizes ZNF10.Repeat.plus.bigwig
+	bedtools genomecov -i ZNF10.Repeat.bed -g hg38.Repeat.sizes -bg -strand + -5|LC_COLLATE=C sort -k1,1 -k2,2n >ZNF10.Repeat.plus.bedgraph
+	#bedGraphToBigWig ZNF10.Repeat.plus.bedgraph hg38.Repeat.sizes ZNF10.Repeat.plus.bigwig
 	#rm ZNF10.*.bedgraph
 ZNF10.Repeat.minus.bedgraph:ZNF10.Repeat.bed
-	bedtools genomecov -i ZNF10.Repeat.bed -g ../../reference-genomes/hg38.repeat.sizes -bg -strand - -5|LC_COLLATE=C sort -k1,1 -k2,2n >ZNF10.Repeat.minus.bedgraph
-	#bedGraphToBigWig ZNF10.Repeat.minus.bedgraph ../../reference-genomes/hg38.repeat.sizes ZNF10.Repeat.minus.bigwig
+	bedtools genomecov -i ZNF10.Repeat.bed -g hg38.Repeat.sizes -bg -strand - -5|LC_COLLATE=C sort -k1,1 -k2,2n >ZNF10.Repeat.minus.bedgraph
+	#bedGraphToBigWig ZNF10.Repeat.minus.bedgraph hg38.Repeat.sizes ZNF10.Repeat.minus.bigwig
 	#rm ZNF10.*.bedgraph
 ZNF10.Repeat.bed:ZNF10.bed
-	liftOver ZNF10.bed ../../../Development/TECookbook/Hg38ToRepeat.over.chain ZNF10.Repeat.bed ZNF10.noRepeat.bed -minMatch=0.5
+	liftOver ZNF10.bed Hg38ToRepeat.over.chain ZNF10.Repeat.bed ZNF10.noRepeat.bed -minMatch=0.5
 	bedtools sort -i ZNF10.Repeat.bed > ZNF10.Repeat.sorted.bed
 	mv ZNF10.Repeat.sorted.bed ZNF10.Repeat.bed
 	rm ZNF10.noRepeat.bed
