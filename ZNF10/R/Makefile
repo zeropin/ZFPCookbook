@@ -1,4 +1,4 @@
-aim: ZNF10.Repeat.plus.bedgraph ZNF10.Repeat.minus.bedgraph 
+aim: ZNF10.Repeat.plus.bedgraph ZNF10.Repeat.minus.bedgraph Control.Repeat.plus.bedgraph Control.Repeat.minus.bedgraph
 clean:
 	rm *Repeat*
 ZNF10.Repeat.plus.bedgraph:ZNF10.Repeat.bed
@@ -21,5 +21,28 @@ ZNF10.bed:SRR5197054.fasta
 	samtools index ZNF10.sorted.bam
 	bamToBed -i ZNF10.sorted.bam>ZNF10.bed
 SRR5197054.fasta:
-	fastq-dump --fasta ./SRR5197054
+	fastq-dump --fasta SRR5197054
 
+Control.Repeat.plus.bedgraph:Control.Repeat.bed
+	        bedtools genomecov -i Control.Repeat.bed -g hg38.repeat.sizes -bg -strand + -5|LC_COLLATE=C sort -k1,1 -k2,2n >Control.Repeat.plus.bedgraph
+		#bedGraphToBigWig Control.Repeat.plus.bedgraph hg38.Repeat.sizes Control.Repeat.plus.bigwig
+		#rm Control.*.bedgraph
+Control.Repeat.minus.bedgraph:Control.Repeat.bed
+	        bedtools genomecov -i Control.Repeat.bed -g hg38.repeat.sizes -bg -strand - -5|LC_COLLATE=C sort -k1,1 -k2,2n >Control.Repeat.minus.bedgraph
+		#bedGraphToBigWig Control.Repeat.minus.bedgraph hg38.Repeat.sizes Control.Repeat.minus.bigwig
+	        #rm Control.*.bedgraph
+Control.Repeat.bed:Control.bed
+	        liftOver Control.bed ../../../Development/TECookbook/Hg38ToRepeat.over.chain Control.Repeat.bed Control.noRepeat.bed -minMatch=0.5
+	        bedtools sort -i Control.Repeat.bed > Control.Repeat.sorted.bed
+	        mv Control.Repeat.sorted.bed Control.Repeat.bed
+	        rm Control.noRepeat.bed
+Control.bed:
+	        bowtie2 -x ../../reference-genomes/hg38/GRCh38_noalt_as --very-sensitive-local -f SRR5197033.fasta -S Control.sam -p 20
+	        samtools view -bS -o Control.bam Control.sam
+	        samtools sort Control.bam -o Control.sorted.bam
+	        samtools index Control.sorted.bam
+	        bamToBed -i Control.sorted.bam>Control.bed
+	        rm *.sam *.bam
+	        rm *.fasta
+SRR5197033.fasta:
+	fastq-dump --fasta SRR5197033
