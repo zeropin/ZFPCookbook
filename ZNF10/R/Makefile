@@ -10,7 +10,7 @@ ZNF10.Repeat.minus.bedgraph:ZNF10.Repeat.bed
 	#bedGraphToBigWig ZNF10.Repeat.minus.bedgraph hg38.Repeat.sizes ZNF10.Repeat.minus.bigwig
 	#rm ZNF10.*.bedgraph
 ZNF10.Repeat.bed:ZNF10.bed
-	liftOver ZNF10.bed Hg38ToRepeat.over.chain ZNF10.Repeat.bed ZNF10.noRepeat.bed -minMatch=0.5
+	liftOver ZNF10.bed hg38ToRepeat.over.chain ZNF10.Repeat.bed ZNF10.noRepeat.bed -minMatch=0.5
 	bedtools sort -i ZNF10.Repeat.bed > ZNF10.Repeat.sorted.bed
 	mv ZNF10.Repeat.sorted.bed ZNF10.Repeat.bed
 	rm ZNF10.noRepeat.bed
@@ -28,7 +28,7 @@ Control.Repeat.plus.bedgraph:Control.Repeat.bed
 Control.Repeat.minus.bedgraph:Control.Repeat.bed
 	bedtools genomecov -i Control.Repeat.bed -g hg38.repeat.sizes -bg -strand - -5|LC_COLLATE=C sort -k1,1 -k2,2n >Control.Repeat.minus.bedgraph
 Control.Repeat.bed:Control.bed
-	liftOver Control.bed ../../../Development/TECookbook/Hg38ToRepeat.over.chain Control.Repeat.bed Control.noRepeat.bed -minMatch=0.5
+	liftOver Control.bed hg38ToRepeat.over.chain Control.Repeat.bed Control.noRepeat.bed -minMatch=0.5
 	bedtools sort -i Control.Repeat.bed > Control.Repeat.sorted.bed
 	mv Control.Repeat.sorted.bed Control.Repeat.bed
 	rm Control.noRepeat.bed
