@@ -38,7 +38,6 @@ Control.bed:
 	samtools sort Control.bam -o Control.sorted.bam
 	samtools index Control.sorted.bam
 	bamToBed -i Control.sorted.bam>Control.bed
-	rm *.sam *.bam
-	rm *.fasta
+	#rm *.sam *.bam
 SRR5197033.fasta:
 	fastq-dump --fasta SRR5197033
