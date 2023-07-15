@@ -24,9 +24,9 @@ SRR5197054.fasta:
 	fastq-dump --fasta SRR5197054
 
 Control.Repeat.plus.bedgraph:Control.Repeat.bed
-	bedtools genomecov -i Control.Repeat.bed -g hg38.repeat.sizes -bg -strand + -5|LC_COLLATE=C sort -k1,1 -k2,2n >Control.Repeat.plus.bedgraph
+	bedtools genomecov -i Control.Repeat.bed -g hg38.Repeat.sizes -bg -strand + -5|LC_COLLATE=C sort -k1,1 -k2,2n >Control.Repeat.plus.bedgraph
 Control.Repeat.minus.bedgraph:Control.Repeat.bed
-	bedtools genomecov -i Control.Repeat.bed -g hg38.repeat.sizes -bg -strand - -5|LC_COLLATE=C sort -k1,1 -k2,2n >Control.Repeat.minus.bedgraph
+	bedtools genomecov -i Control.Repeat.bed -g hg38.Repeat.sizes -bg -strand - -5|LC_COLLATE=C sort -k1,1 -k2,2n >Control.Repeat.minus.bedgraph
 Control.Repeat.bed:Control.bed
 	liftOver Control.bed hg38ToRepeat.over.chain Control.Repeat.bed Control.noRepeat.bed -minMatch=0.5
 	bedtools sort -i Control.Repeat.bed > Control.Repeat.sorted.bed
