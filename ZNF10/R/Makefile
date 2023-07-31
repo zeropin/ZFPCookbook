@@ -32,7 +32,7 @@ Control.Repeat.bed:Control.bed
 	bedtools sort -i Control.Repeat.bed > Control.Repeat.sorted.bed
 	mv Control.Repeat.sorted.bed Control.Repeat.bed
 	rm Control.noRepeat.bed
-Control.bed:
+Control.bed:SRR5197033.fasta
 	bowtie2 -x ../../reference-genomes/hg38/GRCh38_noalt_as --very-sensitive-local -f SRR5197033.fasta -S Control.sam -p 20
 	samtools view -bS -o Control.bam Control.sam
 	samtools sort Control.bam -o Control.sorted.bam
