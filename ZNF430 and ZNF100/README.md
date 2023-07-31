@@ -1,7 +1,6 @@
 This sub-repository contains the data analysis workflow of ZNF430 and its paralog ZNF100, which target THE1B and THE1A retroviruses in human genome respectively.
 
 The relevant paper has been published:
-
 [Zuo, Z. Mobile DNA 14, 6 (2023)](https://mobilednajournal.biomedcentral.com/articles/10.1186/s13100-023-00294-6)
 
 [TECookbook package](https://github.com/zeropin/TECookbook) is used for annotating ChIP-seq peaks locations and extracting putative binding sites within THE1B elements. Without using TECookbook, the binding sites data can be directly loaded from [precompiled data](data/ZNF430.full.sites.RData).
